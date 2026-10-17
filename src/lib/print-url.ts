@@ -200,7 +200,6 @@ export function buildStickerPrintQuery(input: {
   fileBase64: string
   paperSizeId: string
   name: string
-  qr: string
 }): string {
   const size = input.paperSizeId || DEFAULT_PAPER_SIZE_ID
   const stamp = templateStamp(input.fileBase64)
@@ -211,7 +210,6 @@ export function buildStickerPrintQuery(input: {
     ["size", size],
     ["copies", "1"],
     ["text_NAME", input.name],
-    ["barcode_QR", input.qr],
   ]
     .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
     .join("&")
@@ -221,7 +219,6 @@ export function buildStickerPrintUrl(input: {
   fileBase64: string
   paperSizeId: string
   name: string
-  qr: string
 }): string {
   return `brotherwebprint://print?${buildStickerPrintQuery(input)}`
 }
@@ -230,7 +227,6 @@ export function buildAndroidStickerIntent(input: {
   fileBase64: string
   paperSizeId: string
   name: string
-  qr: string
   fallbackUrl: string
 }): string {
   const query = buildStickerPrintQuery(input)

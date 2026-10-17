@@ -1,19 +1,18 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate"
-import QRCode from "qrcode"
+import { paperBmp } from "@/lib/label-bitmap"
+import { labelQr } from "@/lib/label-qr"
 
 /**
- * Brother's QR barcode object (`barcode:qrcodeStyle`) has a `cellSize` in pt
- * — a fixed module size. QR `version` (module count) auto-scales with data
- * length, so a fixed cellSize renders a visibly different physical size for
- * a short URL (e.g. a printer login token) than a long one (e.g. a printer
- * setup URL) from the same template. `cellSize="auto"` looked like the
- * obvious fix, but Smooth Print doesn't honor it as "fill the frame" —
- * tested on device, it rendered the QR smaller, not larger. So we compute
- * the fill ourselves: figure out the QR's real module count for the exact
- * string being printed, then patch cellSize into the template so
- * `modules * cellSize` lands on a fixed physical size, regardless of how
- * long the data is.
+ * Brother's QR barcode object can only draw plain square modules, so before
+ * printing through Smooth Print the sticker template's QR object is swapped for
+ * an image of the TDC QR (`labelQr`) — the same dots USB prints. The barcode
+ * object stays in the hosted `.lbx` as the frame's source of truth.
+ *
+ * The bitmap is exactly 300 dpi and its frame is sized to match (one dot is
+ * 0.24 pt), so Smooth Print does not resample the dots.
  */
+
+const PT_PER_DOT = 72 / 300
 
 function base64ToBytes(base64: string): Uint8Array {
   const binary = atob(base64)
@@ -28,45 +27,62 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-/**
- * Module grid size Brother's QR object (model 2, ECC M) produces for `data`.
- *
- * Byte mode, deliberately: the template's own geometry says Brother does not
- * do mixed-mode segment optimization. The frame is 99pt at cellSize 2pt =
- * 49.5 modules, and the printer setup URL is 49 modules in byte mode (45 if
- * segment-optimized) — i.e. the known-good template is calibrated for the
- * byte-mode count.
- */
-function qrModuleCount(data: string): number {
-  const bytes = new TextEncoder().encode(data)
-  return QRCode.create([{ data: bytes, mode: "byte" }], { errorCorrectionLevel: "M" }).modules.size
+function pt(value: number) {
+  return `${value.toFixed(2)}pt`
 }
 
-/** Width (pt) of the QR object's frame, so the template stays the source of truth. */
-function barcodeFrameWidthPt(labelXml: string): number {
-  const match = labelXml.match(/<barcode:barcode>[\s\S]*?<pt:objectStyle[^>]*\bwidth="([\d.]+)pt"/)
-  if (!match) throw new Error("lbx_barcode_frame_not_found")
-  return Number(match[1])
+/** Same object shape as the sticker art in scripts/build-sticker-templates.ts. */
+function imageObject(file: string, x: number, y: number, size: number) {
+  const box = `x="${pt(x)}" y="${pt(y)}" width="${pt(size)}" height="${pt(size)}"`
+  return (
+    `<image:image><pt:objectStyle ${box} backColor="#FFFFFF" backPrintColorNumber="0" ropMode="COPYPEN" ` +
+    'angle="0" anchor="TOPLEFT" flip="NONE">' +
+    '<pt:pen style="NULL" widthX="0.5pt" widthY="0.5pt" color="#000000" printColorNumber="1"/>' +
+    '<pt:brush style="NULL" color="#000000" printColorNumber="1" id="0"/>' +
+    '<pt:expanded objectName="QR" ID="0" lock="0" templateMergeTarget="LABELLIST" templateMergeType="NONE" ' +
+    'templateMergeID="0" linkStatus="NONE" linkID="0"/></pt:objectStyle>' +
+    `<image:imageStyle originalName="qr.png" alignInText="NONE" firstMerge="true" IpName="" fileName="${file}">` +
+    '<image:transparent flag="false" color="#FFFFFF"/>' +
+    '<image:trimming flag="false" shape="RECTANGLE" trimOrgX="0pt" trimOrgY="0pt" trimOrgWidth="0pt" trimOrgHeight="0pt"/>' +
+    `<image:orgPos ${box}/>` +
+    '<image:effect effect="MONO" brightness="50" contrast="50" photoIndex="4"/>' +
+    '<image:mono operationKind="ERRORDIFFUSION" reverse="0" ditherKind="MESH" threshold="128" gamma="100" ' +
+    'ditherEdge="0" rgbconvProportionRed="30" rgbconvProportionGreen="59" rgbconvProportionBlue="11" ' +
+    'rgbconvProportionReversed="0"/></image:imageStyle></image:image>'
+  )
 }
 
-/**
- * Rewrites the sticker template's QR `cellSize` so `qr` fills the QR object's
- * frame no matter how long it is. Rounds down, since the object is
- * `allowOutOfBoundsTransfer="false"` — overflowing the frame would clip the
- * QR and make it unscannable, while a hair too small is harmless.
- */
-export async function fitStickerQrCellSize(fileBase64: string, qr: string): Promise<string> {
+/** Swaps the sticker template's QR object for an image of `qr` in the TDC look. */
+export function withStickerQrImage(fileBase64: string, qr: string): string {
   // Keep every entry: the sticker art ships as Object*.bmp next to label.xml.
   const entries = unzipSync(base64ToBytes(fileBase64))
   const labelEntry = entries["label.xml"]
   if (!labelEntry) throw new Error("lbx_entry_not_found")
   const labelXml = strFromU8(labelEntry)
 
-  const modules = qrModuleCount(qr)
-  const cellSize = (Math.floor((barcodeFrameWidthPt(labelXml) / modules) * 100) / 100).toFixed(2)
-  const patchedXml = labelXml.replace(/cellSize="[^"]*"/, `cellSize="${cellSize}pt"`)
-  if (patchedXml === labelXml) throw new Error("lbx_cellsize_not_found")
+  const barcode = labelXml.match(/<barcode:barcode>[\s\S]*?<\/barcode:barcode>/)?.[0]
+  const style = barcode?.match(/<pt:objectStyle[^>]*>/)?.[0]
+  if (!barcode || !style) throw new Error("lbx_barcode_frame_not_found")
+  const frame = (name: string) => Number(style.match(new RegExp(`\\b${name}="([\\d.]+)pt"`))?.[1])
+  const [x, y, width, height] = ["x", "y", "width", "height"].map(frame) as [
+    number,
+    number,
+    number,
+    number,
+  ]
 
-  entries["label.xml"] = strToU8(patchedXml)
+  const image = labelQr(qr)
+  const size = image.width * PT_PER_DOT
+  let index = 0
+  while (entries[`Object${index}.bmp`]) index++
+  const file = `Object${index}.bmp`
+
+  entries[file] = paperBmp(image)
+  entries["label.xml"] = strToU8(
+    labelXml.replace(
+      barcode,
+      imageObject(file, x + (width - size) / 2, y + (height - size) / 2, size),
+    ),
+  )
   return bytesToBase64(zipSync(entries))
 }

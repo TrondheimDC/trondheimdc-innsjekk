@@ -1,4 +1,4 @@
-import QRCode from "qrcode"
+import { labelQr } from "@/lib/label-qr"
 
 /**
  * Draws DK-11208 labels (badge, printer stickers) in the browser for USB printing (PC/Mac).
@@ -28,12 +28,6 @@ const DUCK_FRAME: PtRect = { x: 6.3, y: 224.6, width: 20, height: 20 }
 
 const NAME_FONT = { sizePt: 32, weight: 700 }
 const LINE2_FONT = { sizePt: 16, weight: 400 }
-
-/**
- * Keep ~2 mm inside the LBX QR frame so the QR has a quiet zone on the 38 mm
- * label, and snap to whole dots per module.
- */
-const STICKER_QR_MAX_DOTS = 372
 
 /** P-touch "Helsinki" is Brother's Helvetica; use whatever Helvetica/Arial the desktop has. */
 const FONT_FAMILY = '"Helvetica Neue", Helvetica, Arial, "Liberation Sans", sans-serif'
@@ -290,8 +284,8 @@ function drawPageBitmap(
 /**
  * Landscape printer sticker (`printer.lbx` / `stasjon.lbx`), drawn from the
  * template itself so USB and Smooth Print cannot drift: its text frames
- * (angle="90"; `NAME` gets `name`), its bitmaps and its QR frame.
- * Byte-mode ECC M, like Brother's QR object.
+ * (angle="90"; `NAME` gets `name`), its bitmaps and its QR frame, which gets
+ * the TDC QR (`labelQr`).
  */
 export async function renderSticker(input: {
   name: string
@@ -339,19 +333,14 @@ export async function renderSticker(input: {
   const barcode = doc.getElementsByTagName("barcode:barcode")[0]
   if (barcode) {
     const frame = landscapeRect(objectFrame(barcode))
-    const qr = QRCode.create([{ data: new TextEncoder().encode(input.qr), mode: "byte" }], {
-      errorCorrectionLevel: "M",
-    })
-    const count = qr.modules.size
-    const cell = Math.floor(Math.min(STICKER_QR_MAX_DOTS, frame.width) / count)
-    const size = cell * count
+    const qr = labelQr(input.qr)
     // Horizontally where the template puts it; vertically centred on the 38 mm edge
     // (the template's frame carries a Smooth Print offset that raster does not need).
-    const left = Math.round(frame.x + (frame.width - size) / 2)
-    const top = Math.round((BADGE_DOTS.across - size) / 2)
-    for (let row = 0; row < count; row++) {
-      for (let col = 0; col < count; col++) {
-        if (qr.modules.get(row, col)) ctx.fillRect(left + col * cell, top + row * cell, cell, cell)
+    const left = Math.round(frame.x + (frame.width - qr.width) / 2)
+    const top = Math.round((BADGE_DOTS.across - qr.height) / 2)
+    for (let row = 0; row < qr.height; row++) {
+      for (let col = 0; col < qr.width; col++) {
+        if (qr.black[row * qr.width + col]) ctx.fillRect(left + col, top + row, 1, 1)
       }
     }
   }

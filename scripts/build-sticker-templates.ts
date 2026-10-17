@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { inflateSync } from "node:zlib"
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate"
+import { insideTdcMark, type Mono, mono, paperBmp, TDC_MARK } from "../src/lib/label-bitmap"
 
 const REPO = process.argv[2] ?? "."
 const OUT = process.argv[3] ?? join(REPO, "public/templates")
@@ -113,13 +114,6 @@ function qrObj() {
 
 // ---- bitmaps ----------------------------------------------------------------
 
-/** 1-bit image, 1 = black, row-major. */
-type Mono = { width: number; height: number; black: Uint8Array }
-
-function mono(width: number, height: number): Mono {
-  return { width, height, black: new Uint8Array(width * height) }
-}
-
 /** 8-bit RGBA, non-interlaced PNG (what public/badge ships). */
 function decodePng(bytes: Buffer) {
   const width = bytes.readUInt32BE(16)
@@ -190,41 +184,12 @@ function duckImage(cellsPx: number, dot = 2): Mono {
   return out
 }
 
-/** Inside a rectangle with some corners rounded (TL, TR, BR, BL). */
-function inRoundedRect(
-  x: number,
-  y: number,
-  [x0, y0, x1, y1]: [number, number, number, number],
-  radius: number,
-  [tl, tr, br, bl]: [boolean, boolean, boolean, boolean],
-) {
-  if (x < x0 || x > x1 || y < y0 || y > y1) return false
-  const corner = (cx: number, cy: number) => Math.hypot(x - cx, y - cy) <= radius
-  if (tl && x < x0 + radius && y < y0 + radius) return corner(x0 + radius, y0 + radius)
-  if (tr && x > x1 - radius && y < y0 + radius) return corner(x1 - radius, y0 + radius)
-  if (br && x > x1 - radius && y > y1 - radius) return corner(x1 - radius, y1 - radius)
-  if (bl && x < x0 + radius && y > y1 - radius) return corner(x0 + radius, y1 - radius)
-  return true
-}
-
 /** TDC wordmark (tdc-logo.tsx) in black, 4×4 supersampled then thresholded. */
 function tdcMark(heightPx: number): Mono {
-  const gap = 7.28
-  const widthUnits = 40 + gap + 154 + gap + 40
-  const d = 40 + gap
-  const c = 40 + gap + 154 + gap
-  const inside = (x: number, y: number) =>
-    // T
-    (x >= 10.1 && x <= 29.72 && y <= 52) ||
-    (x <= 39.81 && y <= 17.33) ||
-    // D (pill on the right)
-    inRoundedRect(x, y, [d, 0, d + 153.73, 52], 17.33, [false, true, true, false]) ||
-    // C, with the notch on the right
-    (inRoundedRect(x, y, [c, 0, c + 39.81, 52], 17.33, [true, false, false, true]) &&
-      !(x >= c + 19.91 && y >= 17.33 && y <= 34.67))
+  const inside = insideTdcMark
 
-  const unitsPerPx = 52 / heightPx
-  const width = Math.floor(widthUnits / unitsPerPx)
+  const unitsPerPx = TDC_MARK.height / heightPx
+  const width = Math.floor(TDC_MARK.width / unitsPerPx)
   const out = mono(width, heightPx)
   const ss = 4
   for (let py = 0; py < heightPx; py++) {
@@ -241,39 +206,6 @@ function tdcMark(heightPx: number): Mono {
     }
   }
   return out
-}
-
-/** Reader top → paper right (90° clockwise), as a 32-bit bottom-up BMP. */
-function bmpBytes(reader: Mono) {
-  const width = reader.height
-  const height = reader.width
-  const header = 54
-  const bytes = Buffer.alloc(header + width * height * 4, 0xff)
-  bytes.write("BM", 0, "latin1")
-  bytes.writeUInt32LE(bytes.length, 2)
-  bytes.writeUInt32LE(0, 6)
-  bytes.writeUInt32LE(header, 10)
-  bytes.writeUInt32LE(40, 14)
-  bytes.writeInt32LE(width, 18)
-  bytes.writeInt32LE(height, 22)
-  bytes.writeUInt16LE(1, 26)
-  bytes.writeUInt16LE(32, 28)
-  bytes.writeUInt32LE(0, 30)
-  bytes.writeUInt32LE(width * height * 4, 34)
-  bytes.writeInt32LE(3780, 38) // 96 dpi
-  bytes.writeInt32LE(3780, 42)
-  bytes.writeUInt32LE(0, 46)
-  bytes.writeUInt32LE(0, 50)
-  for (let y = 0; y < height; y++) {
-    const row = header + (height - 1 - y) * width * 4
-    for (let x = 0; x < width; x++) {
-      // Clockwise: paper (x, y) ← reader (y, readerHeight - 1 - x).
-      if (reader.black[(reader.height - 1 - x) * reader.width + y]) {
-        bytes.fill(0, row + x * 4, row + x * 4 + 3)
-      }
-    }
-  }
-  return bytes
 }
 
 function ptSize(img: Mono) {
@@ -345,7 +277,7 @@ function build(kind: "printer" | "stasjon") {
 
   images.forEach(({ name, img, u, v, w, h }, i) => {
     const file = `Object${i}.bmp`
-    files[file] = bmpBytes(img)
+    files[file] = paperBmp(img)
     objs.unshift(imageObj(name, file, u, v, w, h))
   })
   for (const text of texts) objs.push(textObj(text))

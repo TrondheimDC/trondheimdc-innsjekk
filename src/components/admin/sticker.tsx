@@ -1,7 +1,7 @@
 "use client"
 
 import { LoaderCircle, Printer, QrCode } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 import {
   AppPhaseButton,
@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { LabelPrintError, printSticker } from "@/lib/label-printer"
-import { fitStickerQrCellSize } from "@/lib/lbx-patch"
+import { withStickerQrImage } from "@/lib/lbx-patch"
 import { platformFromNavigator, printsDirect, supportsAndroidIntent } from "@/lib/platform"
 import { currentPrintMethod, usePrintMethod } from "@/lib/print-method"
 import {
@@ -72,17 +72,7 @@ export function StickerPreview({
   /** Width override; everything inside scales with it. */
   className?: string
 }) {
-  const [src, setSrc] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    void stickerQrDataUrl(url).then((data) => {
-      if (!cancelled) setSrc(data)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [url])
+  const src = useMemo(() => (url ? stickerQrDataUrl(url) : null), [url])
 
   const login = variant === "login"
   const title = name || "Navn"
@@ -208,9 +198,7 @@ export function PrintStickerButton({
   fallbackPath?: string
   /**
    * `printer.lbx` (front, setup) or `stasjon.lbx` (login). Both get their QR
-   * cellSize fitted to the data length before printing: a template's cell
-   * size is a fixed pt value, but QR version (module count) scales with data
-   * length, so a fixed size prints a short URL smaller than a long one.
+   * object swapped for the TDC QR image before Smooth Print prints them.
    */
   templateFile?: string
 }) {
@@ -226,7 +214,7 @@ export function PrintStickerButton({
     setDirectError(null)
     setBusy(true)
     try {
-      // Drawn in the browser from the same template, so no LBX cellSize fitting.
+      // Drawn in the browser from the same template and the same QR dots.
       await printSticker({ name, qr: url, templateFile })
       toast.success("Etiketten er sendt til printeren.")
     } catch (caught) {
@@ -245,12 +233,11 @@ export function PrintStickerButton({
     }
     setBusy(true)
     try {
-      const fileBase64 = await fitStickerQrCellSize(await loadTemplateBase64(templateFile), url)
+      const fileBase64 = withStickerQrImage(await loadTemplateBase64(templateFile), url)
       const input = {
         fileBase64,
         paperSizeId: DEFAULT_PAPER_SIZE_ID,
         name,
-        qr: url,
       }
       const platform = platformFromNavigator()
       const href =
