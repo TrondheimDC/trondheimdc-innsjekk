@@ -1,6 +1,6 @@
 "use client"
 
-import { FileUp, FlaskConical, Package, Printer, ScanLine, Shapes, Users } from "lucide-react"
+import { FileUp, FlaskConical, Package, Printer, ScanLine, Users } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { UserButton } from "@/components/auth/user/user-button"
@@ -103,17 +103,6 @@ function AdminShellInner({ children }: { children: React.ReactNode }) {
                       <FlaskConical />
                       Testutskrift
                     </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    disabled
-                    size="lg"
-                    className="opacity-40"
-                    title="Ikke laget ennå"
-                  >
-                    <Shapes />
-                    P-touch Editor
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
