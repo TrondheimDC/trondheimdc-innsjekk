@@ -33,6 +33,8 @@ export function buildPrintQuery(input: {
   paperSizeId: string
   name: string
   line2: string
+  /** Only the QR badge (`withBadgeQr`) has a LINE3. */
+  line3?: string
   callback?: PrintCallback
 }): string {
   const size = input.paperSizeId || DEFAULT_PAPER_SIZE_ID
@@ -55,6 +57,7 @@ export function buildPrintQuery(input: {
     ["text_NAME", input.name],
     ["text_LINE2", input.line2],
   ]
+  if (input.line3 !== undefined) pairs.push(["text_LINE3", input.line3])
   if (input.callback) {
     pairs.push(["successCallback", input.callback.successCallback])
     pairs.push(["failureCallback", input.callback.failureCallback])
@@ -79,6 +82,7 @@ export function buildPrintUrl(input: {
   paperSizeId: string
   name: string
   line2: string
+  line3?: string
   callback?: PrintCallback
 }): string {
   return `brotherwebprint://print?${buildPrintQuery(input)}`
@@ -93,6 +97,7 @@ export function buildAndroidPrintIntent(input: {
   paperSizeId: string
   name: string
   line2: string
+  line3?: string
   fallbackUrl: string
   callback?: PrintCallback
 }): string {

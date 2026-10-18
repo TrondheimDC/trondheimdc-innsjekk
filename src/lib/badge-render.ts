@@ -1,3 +1,12 @@
+import {
+  BADGE_QR_FRAME,
+  BADGE_QR_LINE2_FONT,
+  BADGE_QR_LINE2_FRAME,
+  BADGE_QR_LINE3_FONT,
+  BADGE_QR_LINE3_FRAME,
+  BADGE_QR_MAX_DOTS,
+} from "@/lib/badge-qr-layout"
+import type { Mono } from "@/lib/label-bitmap"
 import { labelQr } from "@/lib/label-qr"
 
 /**
@@ -187,6 +196,17 @@ export type BadgeInput = {
   line2: string
   /** `.lbx` filename from `PRINT_SAMPLES`; defaults to the production badge. */
   template?: string
+  /** QR content: puts the code bottom-left and stacks line 2 over `line3` (`badge-qr-layout`). */
+  qr?: string | null
+  line3?: string
+}
+
+function drawMono(ctx: CanvasRenderingContext2D, image: Mono, left: number, top: number) {
+  for (let row = 0; row < image.height; row++) {
+    for (let col = 0; col < image.width; col++) {
+      if (image.black[row * image.width + col]) ctx.fillRect(left + col, top + row, 1, 1)
+    }
+  }
 }
 
 /** Landscape 991 × 413 canvas: exactly the dots that print, the way the badge is read. */
@@ -194,8 +214,24 @@ export async function renderBadge(input: BadgeInput): Promise<HTMLCanvasElement>
   const { canvas, ctx } = blankLabel(BADGE_DOTS.along, BADGE_DOTS.across)
   await document.fonts.ready
   if (input.name) drawFittedText(ctx, input.name, landscapeRect(NAME_FRAME), NAME_FONT)
-  drawFittedText(ctx, input.line2, landscapeRect(LINE2_FRAME), LINE2_FONT)
+  if (input.qr) {
+    drawFittedText(ctx, input.line2, landscapeRect(BADGE_QR_LINE2_FRAME), BADGE_QR_LINE2_FONT)
+    drawFittedText(ctx, input.line3 ?? "", landscapeRect(BADGE_QR_LINE3_FRAME), BADGE_QR_LINE3_FONT)
+  } else {
+    drawFittedText(ctx, input.line2, landscapeRect(LINE2_FRAME), LINE2_FONT)
+  }
   threshold(ctx, canvas.width, canvas.height)
+
+  if (input.qr) {
+    const frame = landscapeRect(BADGE_QR_FRAME)
+    const qr = labelQr(input.qr, { maxDots: BADGE_QR_MAX_DOTS, wordmark: false })
+    drawMono(
+      ctx,
+      qr,
+      Math.round(frame.x + (frame.width - qr.width) / 2),
+      Math.round(frame.y + (frame.height - qr.height) / 2),
+    )
+  }
 
   const duck = TEMPLATE_DUCK[input.template ?? "badge.lbx"] ?? null
   if (duck) await drawDuck(ctx, duck)
@@ -336,13 +372,12 @@ export async function renderSticker(input: {
     const qr = labelQr(input.qr)
     // Horizontally where the template puts it; vertically centred on the 38 mm edge
     // (the template's frame carries a Smooth Print offset that raster does not need).
-    const left = Math.round(frame.x + (frame.width - qr.width) / 2)
-    const top = Math.round((BADGE_DOTS.across - qr.height) / 2)
-    for (let row = 0; row < qr.height; row++) {
-      for (let col = 0; col < qr.width; col++) {
-        if (qr.black[row * qr.width + col]) ctx.fillRect(left + col, top + row, 1, 1)
-      }
-    }
+    drawMono(
+      ctx,
+      qr,
+      Math.round(frame.x + (frame.width - qr.width) / 2),
+      Math.round((BADGE_DOTS.across - qr.height) / 2),
+    )
   }
   return canvas
 }

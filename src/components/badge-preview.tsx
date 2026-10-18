@@ -15,11 +15,16 @@ const MARGIN_DOTS = {
 export function BadgePreview({
   name,
   line2,
+  line3,
+  qr,
   template,
   className,
 }: {
   name: string | null | undefined
   line2: string
+  /** With `qr`: the badge with a QR code (`badge-qr-layout`). */
+  line3?: string
+  qr?: string | null
   template?: string
   className?: string
 }) {
@@ -27,7 +32,7 @@ export function BadgePreview({
 
   useEffect(() => {
     let cancelled = false
-    void renderBadge({ name: name ?? null, line2, template }).then((rendered) => {
+    void renderBadge({ name: name ?? null, line2, line3, qr, template }).then((rendered) => {
       const canvas = canvasRef.current
       const ctx = canvas?.getContext("2d")
       if (cancelled || !canvas || !ctx) return
@@ -36,7 +41,7 @@ export function BadgePreview({
     return () => {
       cancelled = true
     }
-  }, [name, line2, template])
+  }, [name, line2, line3, qr, template])
 
   return (
     <div

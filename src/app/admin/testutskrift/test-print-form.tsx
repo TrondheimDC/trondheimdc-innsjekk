@@ -15,9 +15,11 @@ import {
 } from "@/components/printer-connect"
 import { Button } from "@/components/ui/button"
 import { LabelPrintError, printBadge } from "@/lib/label-printer"
+import { withBadgeQr } from "@/lib/lbx-patch"
 import { platformFromNavigator, printsDirect, supportsAndroidIntent } from "@/lib/platform"
 import { currentPrintMethod, type PrintMethod, usePrintMethod } from "@/lib/print-method"
 import {
+  badgeQrGrid,
   getPrintSample,
   PRINT_SAMPLES,
   type TestPrintFormValues,
@@ -29,6 +31,7 @@ import {
   DEFAULT_PAPER_SIZE_ID,
   loadTemplateBase64,
 } from "@/lib/print-url"
+import { DEFAULT_PUBLIC_APP_URL } from "@/lib/public-app-url"
 import {
   appLinkBusy,
   appLinkBusyLabel,
@@ -45,6 +48,9 @@ export function TestPrintForm({ initialPrintMethod }: { initialPrintMethod: Prin
   const sampleIdField = useId()
   const nameId = useId()
   const line2Id = useId()
+  const line3Id = useId()
+  const qrId = useId()
+  const qrHintId = useId()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const direct = printsDirect(usePrintMethod(initialPrintMethod))
@@ -64,13 +70,19 @@ export function TestPrintForm({ initialPrintMethod }: { initialPrintMethod: Prin
       sampleId: "badge",
       name: "Test Testesen",
       line2: "TDC",
+      line3: "Utvikler",
+      qr: DEFAULT_PUBLIC_APP_URL,
     },
   })
 
   const sampleId = watch("sampleId")
   const name = watch("name")
   const line2 = watch("line2")
+  const line3 = watch("line3")
+  const qr = watch("qr").trim()
   const sample = getPrintSample(sampleId) ?? PRINT_SAMPLES[0]!
+  const isQr = sample.kind === "qr"
+  const grid = isQr && qr ? badgeQrGrid(qr) : null
 
   async function onSubmit(values: TestPrintFormValues) {
     const chosen = getPrintSample(values.sampleId)
@@ -80,7 +92,12 @@ export function TestPrintForm({ initialPrintMethod }: { initialPrintMethod: Prin
     setBusy(true)
     if (printsDirect(currentPrintMethod())) {
       try {
-        await printBadge({ name: values.name, line2: values.line2, template: chosen.template })
+        await printBadge({
+          name: values.name,
+          line2: values.line2,
+          template: chosen.template,
+          ...(chosen.kind === "qr" ? { qr: values.qr, line3: values.line3 } : {}),
+        })
       } catch (caught) {
         setError(caught instanceof LabelPrintError ? caught.message : "Klarte ikke å skrive ut.")
       } finally {
@@ -89,16 +106,18 @@ export function TestPrintForm({ initialPrintMethod }: { initialPrintMethod: Prin
       return
     }
     try {
-      const fileBase64 = await loadTemplateBase64(chosen.template)
+      const platform = platformFromNavigator()
+      const android = platform === "android" && supportsAndroidIntent()
+      const fallbackUrl = `${window.location.origin}${apiPath("/admin/testutskrift")}`
+      const template = await loadTemplateBase64(chosen.template)
       const input = {
-        fileBase64,
+        fileBase64: chosen.kind === "qr" ? withBadgeQr(template, values.qr) : template,
         paperSizeId: DEFAULT_PAPER_SIZE_ID,
         name: values.name,
         line2: values.line2,
+        ...(chosen.kind === "qr" ? { line3: values.line3 } : {}),
       }
-      const platform = platformFromNavigator()
-      if (platform === "android" && supportsAndroidIntent()) {
-        const fallbackUrl = `${window.location.origin}${apiPath("/admin/testutskrift")}`
+      if (android) {
         window.location.href = buildAndroidPrintIntent({ ...input, fallbackUrl })
       } else {
         window.location.href = buildPrintUrl(input)
@@ -146,7 +165,16 @@ export function TestPrintForm({ initialPrintMethod }: { initialPrintMethod: Prin
       </div>
 
       <div className="flex min-h-[9.5rem] flex-col items-center justify-center gap-3 rounded-2xl bg-[var(--color-bg-surface)] px-6 py-6 text-center">
-        {direct ? (
+        {isQr ? (
+          // Drawn from the dots in every mode: there is no static preview of a code typed in here.
+          <BadgePreview
+            name={name}
+            line2={line2}
+            line3={line3}
+            qr={grid ? qr : null}
+            template={sample.template}
+          />
+        ) : direct ? (
           <BadgePreview name={name} line2={line2} template={sample.template} />
         ) : sample.preview ? (
           // eslint-disable-next-line @next/next/no-img-element -- static badge preview asset
@@ -169,23 +197,81 @@ export function TestPrintForm({ initialPrintMethod }: { initialPrintMethod: Prin
         </div>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <label htmlFor={nameId} className="text-sm font-medium opacity-80">
-            Navn
-          </label>
-          <input id={nameId} className={fieldClass} autoComplete="off" {...register("name")} />
-          {errors.name ? (
-            <p className="text-sm text-[var(--color-bg-danger)]">{errors.name.message}</p>
-          ) : null}
+      {isQr ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <label htmlFor={nameId} className="text-sm font-medium opacity-80">
+              Navn
+            </label>
+            <input id={nameId} className={fieldClass} autoComplete="off" {...register("name")} />
+            {errors.name ? (
+              <p className="text-sm text-[var(--color-bg-danger)]">{errors.name.message}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor={line2Id} className="text-sm font-medium opacity-80">
+              Firma
+            </label>
+            <input id={line2Id} className={fieldClass} autoComplete="off" {...register("line2")} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor={line3Id} className="text-sm font-medium opacity-80">
+              Rolle
+            </label>
+            <input id={line3Id} className={fieldClass} autoComplete="off" {...register("line3")} />
+          </div>
+          <div className="flex flex-col gap-2 sm:col-span-2">
+            <label htmlFor={qrId} className="text-sm font-medium opacity-80">
+              QR-innhold
+            </label>
+            <textarea
+              id={qrId}
+              rows={2}
+              className={cn(
+                fieldClass,
+                "field-sizing-content h-auto min-h-12 resize-none py-3 break-all",
+              )}
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              placeholder="Lenke eller tekst"
+              aria-describedby={qrHintId}
+              {...register("qr")}
+            />
+            {errors.qr ? (
+              <p id={qrHintId} className="text-sm text-[var(--color-bg-danger)]">
+                {errors.qr.message}
+              </p>
+            ) : (
+              <p id={qrHintId} className="text-sm opacity-60">
+                {grid
+                  ? `${grid.modules} × ${grid.modules} ruter. Kortere innhold gir større ruter, som er lettere å skanne.`
+                  : qr
+                    ? "For mye til QR-koden på navneskiltet."
+                    : "Lenke, tekst eller hva du vil teste."}
+              </p>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-2">
-          <label htmlFor={line2Id} className="text-sm font-medium opacity-80">
-            Linje 2
-          </label>
-          <input id={line2Id} className={fieldClass} autoComplete="off" {...register("line2")} />
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <label htmlFor={nameId} className="text-sm font-medium opacity-80">
+              Navn
+            </label>
+            <input id={nameId} className={fieldClass} autoComplete="off" {...register("name")} />
+            {errors.name ? (
+              <p className="text-sm text-[var(--color-bg-danger)]">{errors.name.message}</p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor={line2Id} className="text-sm font-medium opacity-80">
+              Linje 2
+            </label>
+            <input id={line2Id} className={fieldClass} autoComplete="off" {...register("line2")} />
+          </div>
         </div>
-      </div>
+      )}
 
       {direct ? (
         <PrinterMessage printer={printer} error={error} />

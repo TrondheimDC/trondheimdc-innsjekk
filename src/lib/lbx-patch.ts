@@ -1,4 +1,12 @@
 import { strFromU8, strToU8, unzipSync, zipSync } from "fflate"
+import {
+  BADGE_QR_FRAME,
+  BADGE_QR_LINE2_FONT,
+  BADGE_QR_LINE2_FRAME,
+  BADGE_QR_LINE3_FONT,
+  BADGE_QR_LINE3_FRAME,
+  BADGE_QR_MAX_DOTS,
+} from "@/lib/badge-qr-layout"
 import { paperBmp } from "@/lib/label-bitmap"
 import { labelQr } from "@/lib/label-qr"
 
@@ -83,6 +91,63 @@ export function withStickerQrImage(fileBase64: string, qr: string): string {
       barcode,
       imageObject(file, x + (width - size) / 2, y + (height - size) / 2, size),
     ),
+  )
+  return bytesToBase64(zipSync(entries))
+}
+
+type PtRect = { x: number; y: number; width: number; height: number }
+
+/** A copy of an LBX text object moved to `frame` and set in `font`. */
+function retext(text: string, frame: PtRect, font: { sizePt: number; weight: number }) {
+  const size = pt(font.sizePt)
+  return text
+    .replace(
+      /(<pt:objectStyle )x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*"/,
+      `$1x="${pt(frame.x)}" y="${pt(frame.y)}" width="${pt(frame.width)}" height="${pt(frame.height)}"`,
+    )
+    .replace(/ weight="\d+"/g, ` weight="${font.weight}"`)
+    .replace(/ size="[\d.]+pt" orgSize="[\d.]+pt"/g, ` size="${size}" orgSize="${size}"`)
+    .replace(/ orgPoint="[\d.]+pt"/, ` orgPoint="${size}"`)
+}
+
+/**
+ * `badge.lbx` → the badge with a QR code (`badge-qr-layout`): LINE2 moves next
+ * to the code in bold, a LINE3 (role) goes under it, and the code goes in as an
+ * image in the TDC look, like the sticker QR.
+ */
+export function withBadgeQr(fileBase64: string, qr: string): string {
+  const entries = unzipSync(base64ToBytes(fileBase64))
+  const labelEntry = entries["label.xml"]
+  if (!labelEntry) throw new Error("lbx_entry_not_found")
+  const labelXml = strFromU8(labelEntry)
+
+  const line2 = Array.from(labelXml.matchAll(/<text:text>[\s\S]*?<\/text:text>/g))
+    .map((match) => match[0])
+    .find((text) => text.includes('objectName="LINE2"'))
+  if (!line2) throw new Error("lbx_line2_not_found")
+  const line3 = retext(line2, BADGE_QR_LINE3_FRAME, BADGE_QR_LINE3_FONT).replace(
+    'objectName="LINE2"',
+    'objectName="LINE3"',
+  )
+
+  const image = labelQr(qr, { maxDots: BADGE_QR_MAX_DOTS, wordmark: false })
+  const size = image.width * PT_PER_DOT
+  let index = 0
+  while (entries[`Object${index}.bmp`]) index++
+  const file = `Object${index}.bmp`
+  entries[file] = paperBmp(image)
+  const frame = BADGE_QR_FRAME
+  const qrObject = imageObject(
+    file,
+    frame.x + (frame.width - size) / 2,
+    frame.y + (frame.height - size) / 2,
+    size,
+  )
+
+  entries["label.xml"] = strToU8(
+    labelXml
+      .replace(line2, retext(line2, BADGE_QR_LINE2_FRAME, BADGE_QR_LINE2_FONT) + line3)
+      .replace("</pt:objects>", `${qrObject}</pt:objects>`),
   )
   return bytesToBase64(zipSync(entries))
 }
