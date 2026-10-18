@@ -27,7 +27,9 @@ function DialogContent({
           // instead of clipping the close button off-screen. dvh (not vh):
           // vh is the largest mobile viewport (address bar hidden), so a
           // vh-sized dialog can render taller than what's actually visible.
-          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-[var(--color-black-3)] p-6 text-[var(--color-fg-base)] shadow-lg outline-none",
+          // minmax(0, 1fr): a wide child (the label preview) shrinks instead of
+          // stretching the column past the dialog.
+          "fixed top-1/2 left-1/2 z-50 grid grid-cols-[minmax(0,1fr)] max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-2xl bg-[var(--color-black-3)] p-6 text-[var(--color-fg-base)] shadow-lg outline-none",
           className,
         )}
         {...props}
