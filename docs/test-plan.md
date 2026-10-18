@@ -57,7 +57,7 @@ Two per printer: **setup QR** on the front, **login QR** («Logg inn · {name}»
 | # | Task | Done | Notes |
 |---|---|---|---|
 | A4.1 | Print both for one printer (from a phone, or Chrome/Edge on a PC over USB) | ☐ | |
-| A4.2 | Scan both with a phone camera: setup → `/oppsett?printer=prt_…`, login → `/logg-inn?token=lgn_…` | ☐ | A **USB-printed** sticker has never been scanned on hardware (open TODO). Check it here before printing the rest that way |
+| A4.2 | Scan both with a phone camera: setup → `/oppsett/prt_…`, login → `/logg-inn/lgn_…` (each redirects to its page) | ☐ | A **USB-printed** sticker has never been scanned on hardware (open TODO). Check it here before printing the rest that way |
 | A4.3 | Print and stick the rest, **one printer at a time**, checking the name | ☐ | |
 
 ### A5. Hardware and supplies

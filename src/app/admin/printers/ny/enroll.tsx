@@ -35,7 +35,7 @@ import {
 } from "@/lib/printer-format"
 import { DEFAULT_PRINTER_MODEL, PRINTER_MODELS, type PrinterModelId } from "@/lib/printer-models"
 import { createPrinter, printersQueryKey } from "@/lib/printer-queries"
-import { printerSetupPath } from "@/lib/printer-setup"
+import { printerStickerSetupPath } from "@/lib/printer-setup"
 import { loginStickerText, printerLoginUrl, setupStickerText } from "@/lib/public-app-url"
 import { apiPath, cn } from "@/lib/utils"
 
@@ -146,9 +146,10 @@ export function EnrollPrinter({ origin }: { origin: string }) {
 
   const mac = formatBluetoothMac(address)
   // Same length as a real printer id, so the preview QR has the printed module count.
-  const previewPath = printerSetupPath(PREVIEW_PRINTER_ID)
+  const previewPath = printerStickerSetupPath(PREVIEW_PRINTER_ID)
   const previewUrl = origin ? `${origin}${apiPath(previewPath)}` : previewPath
-  const setupUrl = saved && origin ? `${origin}${apiPath(printerSetupPath(saved.printer.id))}` : ""
+  const setupUrl =
+    saved && origin ? `${origin}${apiPath(printerStickerSetupPath(saved.printer.id))}` : ""
   const loginUrl = saved && origin ? printerLoginUrl(origin, saved.token) : ""
 
   return (

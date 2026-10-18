@@ -65,8 +65,9 @@ export function normalizePrinterTokenBodyInput(raw: string): string {
 }
 
 /**
- * Normalize pasted text, full login URL, raw `lgn_…` (or legacy `prt_…`), or body-only
- * into the canonical external token (`lgn_` + body). Returns null if invalid.
+ * Normalize pasted text, full login URL (`/logg-inn/lgn_…` or `?token=`), raw `lgn_…`
+ * (or legacy `prt_…`), or body-only into the canonical external token (`lgn_` + body).
+ * Returns null if invalid.
  */
 export function parsePrinterTokenInput(raw: string): PrinterToken | null {
   const trimmed = raw.trim()
@@ -88,6 +89,10 @@ function extractTokenFromUrlish(raw: string): PrinterToken | null {
   } catch {
     // not an absolute URL
   }
+
+  // Login sticker: /logg-inn/lgn_…
+  const pathMatch = raw.match(/\/logg-inn\/(lgn_[0-9A-Z]+)(?:[/?#\s]|$)/i)
+  if (pathMatch) return parsePrinterTokenInput(pathMatch[1])
 
   const queryMatch = raw.match(/[?&]token=([^&\s#]+)/i)
   if (queryMatch) {

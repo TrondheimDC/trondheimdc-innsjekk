@@ -32,6 +32,18 @@ export function printerSetupPath(printerId: string): string {
   return `/oppsett?${new URLSearchParams({ printer: printerId })}`
 }
 
+/** `prt_` + body, as the `/oppsett/prt_…` route takes it. */
+export const PRINTER_ID_PATTERN = /^prt_[0-9A-Z]+$/
+
+/**
+ * Link printed on the front sticker: `/oppsett/prt_…`, which redirects to
+ * `printerSetupPath`. Shorter than the query form, so the QR is coarser and
+ * scans more easily. Printers from before `prt_` ids keep the query form.
+ */
+export function printerStickerSetupPath(printerId: string): string {
+  return PRINTER_ID_PATTERN.test(printerId) ? `/oppsett/${printerId}` : printerSetupPath(printerId)
+}
+
 /** Older stickers with the fields inline (`/koble`, `/oppsett?address=…`). */
 export function printerSetupParamsPath(input: PrinterSetupParams): string {
   const params = new URLSearchParams({
@@ -59,7 +71,7 @@ export function printerSetupParamsFromSearch(search: {
   }
 }
 
-/** Parse a sticker QR (https /oppsett?printer=…, or an older /koble / /oppsett?address=…). */
+/** Parse a sticker QR (https /oppsett/prt_…, /oppsett?printer=…, or an older /koble / /oppsett?address=…). */
 export function parsePrinterSetupUrl(raw: string): PrinterSticker | null {
   const text = raw.trim()
   if (!text) return null
@@ -72,6 +84,9 @@ export function parsePrinterSetupUrl(raw: string): PrinterSticker | null {
   }
 
   const path = url.pathname.replace(/\/+$/, "")
+  const stickerId = path.match(/\/oppsett\/(prt_[0-9A-Z]+)$/)?.[1]
+  if (stickerId) return { printerId: stickerId }
+
   const isKoble = path === "/koble" || path.endsWith("/koble")
   const isOppsett = path === "/oppsett" || path.endsWith("/oppsett")
   if (!isKoble && !isOppsett) return null

@@ -12,8 +12,11 @@ import { inRoundedRect, insideTdcMark, type Mono, mono, TDC_MARK } from "@/lib/l
  *   correction Q (25%) or H (30%) recovers. Checked with ZXing (the app's
  *   own scanner): it reads as well as the plain square code when blurred.
  * - Versions 7 and up put an alignment square in the dead centre, under the
- *   wordmark. So pick the highest error correction that still fits version 6,
- *   and leave the hole out when nothing does.
+ *   wordmark. So stay at version 6 or below, and leave the hole out when the
+ *   data does not fit.
+ * - Fewer modules means bigger dots, which matters more than spare error
+ *   correction: take the smallest grid that holds the data at Q, then the most
+ *   error correction that grid has room for.
  * - Whole dots per module, and the hole never covers a function pattern.
  */
 
@@ -30,23 +33,64 @@ const HOLE = { width: 19, height: 7 }
 const DOT_RADIUS = 0.42
 
 function encode(data: string, errorCorrectionLevel: QRCodeErrorCorrectionLevel) {
-  // Byte mode, like the rest of the sticker code: one segment, no mode switching.
-  return QRCode.create([{ data: new TextEncoder().encode(data), mode: "byte" }], {
-    errorCorrectionLevel,
-  })
+  // `qrcode` splits the string into the cheapest run of segments: the capitals
+  // and digits after `prt_` / `lgn_` go in compact alphanumeric mode, the rest as
+  // UTF-8 bytes. That keeps the login link (61 chars) at 37 × 37 instead of 41 × 41.
+  return QRCode.create(data, { errorCorrectionLevel })
 }
 
-function pickCode(data: string) {
+function pickCode(data: string, wordmark: boolean) {
+  if (!wordmark) {
+    // No hole to make room for: the smallest grid, with the most error correction it holds.
+    const smallest = encode(data, "L").version
+    for (const level of ECC_LEVELS) {
+      const code = encode(data, level)
+      if (code.version === smallest) return { code, hole: false }
+    }
+    return { code: encode(data, "L"), hole: false }
+  }
+  // Q (25%) covers the hole (~8–10% of the code) with room to spare.
+  const smallest = encode(data, "Q").version
+  if (smallest > MAX_VERSION_WITH_HOLE) return { code: encode(data, "M"), hole: false }
   for (const level of ECC_LEVELS) {
     const code = encode(data, level)
-    if (code.version <= MAX_VERSION_WITH_HOLE) return { code, hole: true }
+    if (code.version === smallest) return { code, hole: true }
   }
-  return { code: encode(data, "M"), hole: false }
+  return { code: encode(data, "Q"), hole: true }
+}
+
+/** Thinner than this and thermal dots blur into each other; phones stop reading it. */
+const MIN_DOTS_PER_MODULE = 4
+
+/**
+ * Grid `labelQr` gives `data`: modules per side and printer dots per module.
+ * `null` when it does not fit in `maxDots` legibly.
+ */
+export function labelQrGrid(
+  data: string,
+  { maxDots = STICKER_QR_MAX_DOTS, wordmark = true }: { maxDots?: number; wordmark?: boolean } = {},
+): { modules: number; dotsPerModule: number } | null {
+  let modules: number
+  try {
+    modules = pickCode(data, wordmark).code.modules.size
+  } catch {
+    // More than a QR code holds.
+    return null
+  }
+  const dotsPerModule = Math.floor(maxDots / modules)
+  return dotsPerModule >= MIN_DOTS_PER_MODULE ? { modules, dotsPerModule } : null
 }
 
 /** Square `Mono` of `modules × cell` dots, no quiet zone (the label's white is the margin). */
-export function labelQr(data: string, maxDots = STICKER_QR_MAX_DOTS): Mono {
-  const picked = pickCode(data)
+export function labelQr(
+  data: string,
+  {
+    maxDots = STICKER_QR_MAX_DOTS,
+    // Off for small codes (the badge), where the hole would eat too much of the code.
+    wordmark = true,
+  }: { maxDots?: number; wordmark?: boolean } = {},
+): Mono {
+  const picked = pickCode(data, wordmark)
   const { modules } = picked.code
   const count = modules.size
   const cell = Math.floor(maxDots / count)

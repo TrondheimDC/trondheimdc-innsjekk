@@ -17,8 +17,20 @@ export function printerLoginPath(token: string): string {
   return `/logg-inn?token=${encodeURIComponent(token)}`
 }
 
+/** `lgn_` + body, as the `/logg-inn/lgn_…` route takes it. */
+export const LOGIN_TOKEN_PATTERN = /^lgn_[0-9A-Z]+$/
+
+/**
+ * Link printed on the login sticker: `/logg-inn/lgn_…`, which redirects to
+ * `printerLoginPath`. Shorter than the query form, so the QR is coarser and
+ * scans more easily. Older `prt_` tokens keep the query form.
+ */
+export function printerStickerLoginPath(token: string): string {
+  return LOGIN_TOKEN_PATTERN.test(token) ? `/logg-inn/${token}` : printerLoginPath(token)
+}
+
 export function printerLoginUrl(origin: string, token: string): string {
-  return `${origin}${apiPath(printerLoginPath(token))}`
+  return `${origin}${apiPath(printerStickerLoginPath(token))}`
 }
 
 /**

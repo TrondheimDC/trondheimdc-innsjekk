@@ -31,7 +31,7 @@ import {
   patchPrinter,
   printersQueryKey,
 } from "@/lib/printer-queries"
-import { printerSetupPath } from "@/lib/printer-setup"
+import { printerStickerSetupPath } from "@/lib/printer-setup"
 import { loginStickerText, printerLoginUrl } from "@/lib/public-app-url"
 import { apiPath } from "@/lib/utils"
 
@@ -196,7 +196,7 @@ function PrinterCardActions({
   onSecrets: (result: { pin?: string; token?: string }) => void
 }) {
   const [moreOpen, setMoreOpen] = useState(false)
-  const setupUrl = `${origin}${apiPath(printerSetupPath(printer.id))}`
+  const setupUrl = `${origin}${apiPath(printerStickerSetupPath(printer.id))}`
   const banned = Boolean(printer.banned)
   const dayOfButtonClass =
     "h-auto min-h-14 w-full flex-col gap-1 bg-black/25 py-3 text-base whitespace-normal"
