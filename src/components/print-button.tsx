@@ -95,6 +95,8 @@ export function PrintButton({
   const [error, setError] = useState<string | null>(null)
   const platform = refinePlatform(platformProp)
   const alreadyPrinted = checkedIn || printed
+  // Orange only for someone who arrived checked in, not after this button checks them in.
+  const [arrivedCheckedIn] = useState(checkedIn)
   const autoPrintStarted = useRef(false)
   const method = usePrintMethod()
   const printer = useLabelPrinter()
@@ -215,7 +217,7 @@ export function PrintButton({
         <Button
           size="lg"
           // TDC orange, so an attendee who already has a badge stands out.
-          variant={checkedIn ? "destructive" : "default"}
+          variant={arrivedCheckedIn && checkedIn ? "destructive" : "default"}
           disabled={busy || (direct && printerBlocksPrint(printer))}
           onClick={() => {
             if (alreadyPrinted) setConfirmOpen(true)

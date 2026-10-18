@@ -95,6 +95,8 @@ export function ScanResultSheet({
 
   const line2 = labelLine(current.company, current.role)
   const checkedIn = current.checkedInAt != null
+  // Checking in from this card (print, Sjekk inn) is still a new check-in; only the scan decides "Allerede".
+  const alreadyCheckedIn = checkedIn && attendee?.checkedInAt != null
   const shouldAutoPrint = autoPrint === true && !checkedIn && Boolean(current.name)
 
   if (confirmed) {
@@ -138,12 +140,12 @@ export function ScanResultSheet({
           <p
             className={cn(
               "text-sm tracking-wide",
-              checkedIn
+              alreadyCheckedIn
                 ? "font-semibold text-[var(--color-orange)]"
                 : "text-[var(--color-fg-brand)]",
             )}
           >
-            {checkedIn ? "Allerede innsjekket" : "Ny innsjekk"}
+            {alreadyCheckedIn ? "Allerede innsjekket" : "Ny innsjekk"}
           </p>
           <h2
             className={cn(
