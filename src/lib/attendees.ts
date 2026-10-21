@@ -10,6 +10,7 @@ import {
   type ImportedAttendee,
   type ManualAttendee,
   type ManualAttendeeBody,
+  type PrintEventBody,
 } from "./db/schema"
 
 export type { Attendee }
@@ -44,6 +45,12 @@ export interface AttendeeRepository {
     correction: CorrectAttendeeBody,
     actor?: { userId: string; name: string } | null,
   ): Promise<Attendee | null>
+  /** A badge sent to the printer, logged as a `print` event. False when the attendee is gone. */
+  recordPrint(
+    id: string,
+    print: PrintEventBody,
+    actor?: { userId: string; name: string } | null,
+  ): Promise<boolean>
   /** Manuell innsjekk: someone not on the Checkin list. Logged as a `create` event. */
   createManual(
     values: ManualAttendeeBody,
@@ -206,6 +213,24 @@ export const attendeeRepository: AttendeeRepository = {
       })
       return effective(updated!)
     })
+  },
+
+  async recordPrint(id, print, actor) {
+    const [row] = await db
+      .select({ id: attendees.id })
+      .from(attendees)
+      .where(and(eq(attendees.id, id), active))
+      .limit(1)
+    if (!row) return false
+    await db.insert(checkEvents).values({
+      attendeeId: id,
+      action: "print",
+      createdAt: new Date().toISOString(),
+      detail: JSON.stringify(print),
+      actorUserId: actor?.userId ?? null,
+      actorName: actor?.name ?? null,
+    })
+    return true
   },
 
   async createManual({ reason, ...values }, actor) {

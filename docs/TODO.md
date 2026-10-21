@@ -194,6 +194,7 @@ See and replay the day afterwards: how fast everyone got checked in, and how muc
 - [x] Count each attendee once: the `in` that still stands, leaving out check-ins that were later undone (`out`)
 - [x] Door edits from `correct` events (not `attendees.correctedAt`, which only shows who is corrected right now): number of edits, attendees edited, which fields changed (`detail.from` / `detail.to`), and missing names filled in (`from.name` is null) counted separately; plus Manuelle and undone check-ins
 - [x] Breakdown per printer (the door login's printer; admins by name)
+- [x] Reprints: each badge sent is a `print` event (`reprint` when it had been printed already); Dashboard → «Skrevet ut på nytt» and per printer. Smooth Print counts as sent, not confirmed printed
 - [ ] Per-day chart for ranges over several days (today the finest is per hour, mostly empty overnight)
 
 ### Own P-touch / template editor

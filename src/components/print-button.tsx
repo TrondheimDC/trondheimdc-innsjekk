@@ -25,7 +25,7 @@ import {
   refinePlatform,
   supportsAndroidIntent,
 } from "@/lib/platform"
-import { currentPrintMethod, usePrintMethod } from "@/lib/print-method"
+import { currentPrintMethod, type PrintMethod, usePrintMethod } from "@/lib/print-method"
 import {
   consumePrintOutcome,
   primeForIosTabReuse,
@@ -64,6 +64,19 @@ import { apiPath } from "@/lib/utils"
  */
 const LINK_SHOWN_IN_BAR: LabelPrinterState = { kind: "idle" }
 
+/**
+ * Log the badge on the server (`print` event), for the dashboard's reprint count.
+ * Never blocks or fails the print; `keepalive` lets it finish while Smooth Print takes over.
+ */
+function logPrint(attendeeId: string, reprint: boolean, method: PrintMethod) {
+  void fetch(apiPath(`/api/attendees/${encodeURIComponent(attendeeId)}/prints`), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ reprint, method }),
+    keepalive: true,
+  }).catch(() => {})
+}
+
 function buildPrintCallback(): PrintCallback {
   // Same shape as primeForIosTabReuse, so Safari reuses the tab.
   const callbackUrl = `${window.location.origin}${window.location.pathname}?${printCallbackQueryPrefix()}result=`
@@ -71,6 +84,7 @@ function buildPrintCallback(): PrintCallback {
 }
 
 export function PrintButton({
+  attendeeId,
   name,
   line2,
   platform: platformProp,
@@ -81,6 +95,8 @@ export function PrintButton({
   onPrinted,
   autoPrint = false,
 }: {
+  /** Set on the door: each badge sent is logged, so reprints show up on the dashboard. */
+  attendeeId?: string
   name: string
   line2: string
   platform: PhonePlatform
@@ -160,7 +176,7 @@ export function PrintButton({
   }
 
   /** Print first, check in last: a driver error never checks anyone in. */
-  async function printDirect({ checkIn }: { checkIn: boolean }) {
+  async function printDirect({ checkIn, reprint }: { checkIn: boolean; reprint: boolean }) {
     setError(null)
     setCheckInFailed(false)
     setBusy(true)
@@ -176,6 +192,7 @@ export function PrintButton({
         return
       }
       setPrinted(true)
+      if (attendeeId) logPrint(attendeeId, reprint, currentPrintMethod())
       if (checkIn && !(await checkInAfterPrint())) return
       onPrinted?.()
     } finally {
@@ -194,8 +211,10 @@ export function PrintButton({
   }
 
   async function print({ checkIn }: { checkIn: boolean }) {
+    // Printed before (here, or checked in on arrival): the «Skriv ut igjen?» case.
+    const reprint = alreadyPrinted
     if (printsDirect(currentPrintMethod())) {
-      await printDirect({ checkIn })
+      await printDirect({ checkIn, reprint })
       return
     }
     setError(null)
@@ -203,6 +222,8 @@ export function PrintButton({
     try {
       const fileBase64 = await loadTemplateBase64()
       if (checkIn && onCheckIn) await onCheckIn()
+      // Smooth Print says later whether it printed; count the badge as sent here.
+      if (attendeeId) logPrint(attendeeId, reprint, "smooth-print")
       openPrint(fileBase64)
       setPrinted(true)
       onPrinted?.()

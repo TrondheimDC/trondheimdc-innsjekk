@@ -166,6 +166,7 @@ export function ScanResultSheet({
           {current.name ? (
             <PrintButton
               key={current.id}
+              attendeeId={current.id}
               name={current.name}
               line2={line2}
               platform={platform}

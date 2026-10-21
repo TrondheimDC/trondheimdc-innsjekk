@@ -10,6 +10,7 @@ const badgeFieldsSchema = z.object({
   role: z.string().nullable(),
 })
 const correctDetailSchema = z.object({ from: badgeFieldsSchema, to: badgeFieldsSchema })
+const printDetailSchema = z.object({ reprint: z.boolean() })
 
 type Actor = { actorUserId: string | null; actorName: string | null }
 
@@ -88,7 +89,7 @@ export async function loadDashboard(range: DashboardRange): Promise<Dashboard> {
     .from(checkEvents)
     .where(
       and(
-        inArray(checkEvents.action, ["correct", "create"]),
+        inArray(checkEvents.action, ["correct", "create", "print"]),
         gte(checkEvents.createdAt, from),
         lt(checkEvents.createdAt, to),
       ),
@@ -100,7 +101,7 @@ export async function loadDashboard(range: DashboardRange): Promise<Dashboard> {
     const { key, name } = resolveDoor(actor)
     let row = doors.get(key)
     if (!row) {
-      row = { key, name, edits: 0, manual: 0 }
+      row = { key, name, edits: 0, manual: 0, reprints: 0 }
       doors.set(key, row)
     }
     return row
@@ -109,7 +110,19 @@ export async function loadDashboard(range: DashboardRange): Promise<Dashboard> {
   const edits = { total: 0, attendees: 0, name: 0, company: 0, role: 0, namesFilled: 0 }
   const edited = new Set<string>()
   let manual = 0
+  const prints = { total: 0, reprints: 0, attendeesReprinted: 0 }
+  const reprinted = new Set<string>()
   for (const event of fixes) {
+    if (event.action === "print") {
+      prints.total += 1
+      const detail = printDetailSchema.safeParse(event.detail ? JSON.parse(event.detail) : null)
+      if (detail.success && detail.data.reprint) {
+        prints.reprints += 1
+        reprinted.add(event.attendeeId)
+        door(event).reprints += 1
+      }
+      continue
+    }
     if (event.action === "create") {
       manual += 1
       door(event).manual += 1
@@ -127,6 +140,7 @@ export async function loadDashboard(range: DashboardRange): Promise<Dashboard> {
     if (before.role !== after.role) edits.role += 1
   }
   edits.attendees = edited.size
+  prints.attendeesReprinted = reprinted.size
 
   const checkIns = inRange.map((event) => ({ at: event.createdAt, door: door(event).key }))
 
@@ -143,6 +157,7 @@ export async function loadDashboard(range: DashboardRange): Promise<Dashboard> {
     undone,
     edits,
     manual,
+    prints,
     doors: [...doors.values()],
   }
 }

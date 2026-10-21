@@ -126,6 +126,7 @@ export interface DoorRow {
   checkIns: number
   edits: number
   manual: number
+  reprints: number
   first: number | null
   last: number | null
   peakMinute: number

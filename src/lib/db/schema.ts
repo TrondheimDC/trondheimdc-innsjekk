@@ -39,9 +39,12 @@ export const checkEvents = sqliteTable(
     attendeeId: text("attendee_id")
       .notNull()
       .references(() => attendees.id),
-    action: text("action", { enum: ["create", "in", "out", "correct"] }).notNull(),
+    action: text("action", { enum: ["create", "in", "out", "correct", "print"] }).notNull(),
     createdAt: text("created_at").notNull(),
-    /** JSON `{ from, to }` of name/company/role for `correct`; `{ to, reason }` for `create`. */
+    /**
+     * JSON `{ from, to }` of name/company/role for `correct`; `{ to, reason }` for `create`;
+     * `{ reprint, method }` for `print` (a badge sent to the printer).
+     */
     detail: text("detail"),
     /** better-auth user id (printer door account or admin) that performed the action. */
     actorUserId: text("actor_user_id"),
@@ -90,6 +93,13 @@ export const attendeeStatsSchema = z.object({
 export const setCheckedInBodySchema = z.object({
   checkedIn: z.boolean(),
 })
+
+/** A badge sent to the printer. `reprint`: it had been printed already («Skriv ut igjen?»). */
+export const printEventBodySchema = z.object({
+  reprint: z.boolean(),
+  method: z.enum(["smooth-print", "usb", "app"]),
+})
+export type PrintEventBody = z.infer<typeof printEventBodySchema>
 
 /** Door correction form + PUT body. Company and role may be blanked on purpose. */
 export const correctAttendeeBodySchema = z.object({

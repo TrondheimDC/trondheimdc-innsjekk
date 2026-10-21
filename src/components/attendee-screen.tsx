@@ -193,6 +193,7 @@ export function AttendeeScreen({
         ) : null}
         {attendee.name ? (
           <PrintButton
+            attendeeId={attendee.id}
             name={attendee.name}
             line2={line2}
             platform={platform}

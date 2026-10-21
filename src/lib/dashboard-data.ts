@@ -36,6 +36,13 @@ export const dashboardSchema = z.object({
   }),
   /** Manuell innsjekk: people added at the door. */
   manual: z.number().int().nonnegative(),
+  /** Badges sent to a printer (`print` events; none before they were logged). */
+  prints: z.object({
+    total: z.number().int().nonnegative(),
+    /** Printed again for someone who already had a badge. */
+    reprints: z.number().int().nonnegative(),
+    attendeesReprinted: z.number().int().nonnegative(),
+  }),
   /** Printers or logins that did anything in the range. `key` matches `checkIns[].door`. */
   doors: z.array(
     z.object({
@@ -43,6 +50,7 @@ export const dashboardSchema = z.object({
       name: z.string(),
       edits: z.number().int().nonnegative(),
       manual: z.number().int().nonnegative(),
+      reprints: z.number().int().nonnegative(),
     }),
   ),
 })

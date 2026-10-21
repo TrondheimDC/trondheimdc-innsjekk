@@ -27,13 +27,13 @@ function useWidth() {
   return { ref, width }
 }
 
-/** 0 / 5 / 10 …: about four clean steps up to at least `max`. */
+/** 0 / 5 / 10 …: about four clean steps up to at least `max`. Counts are whole, so steps are too. */
 function niceTicks(max: number): number[] {
   const raw = Math.max(1, max) / 4
   const magnitude = 10 ** Math.floor(Math.log10(raw))
-  const step = [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw)!
+  const step = Math.max(1, [1, 2, 5, 10].map((m) => m * magnitude).find((s) => s >= raw)!)
   const top = Math.max(step, Math.ceil(max / step) * step)
-  return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => Math.round(i * step))
+  return Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step)
 }
 
 const TICK_STEPS = [1, 5, 10, 15, 30, 60, 120, 180, 360, 720, 1440]
@@ -134,6 +134,9 @@ export function CheckInChart({
               PAD.top + (1 - value / top) * (HEIGHT - PAD.top - PAD.bottom)
             const points: [number, number][] = values.map((value, i) => [x(at(i)), y(value)])
             if (mode === "total") points.unshift([x(start), y(0)])
+            // One interval alone is a point, not a line: rise from and fall back to the baseline.
+            else if (points.length === 1) points.splice(0, 0, [x(start), y(0)])
+            if (mode === "interval" && rows.length === 1) points.push([x(end), y(0)])
             const line = smoothPath(points)
             const area = `${line}L${points.at(-1)![0]},${y(0)}L${points[0]![0]},${y(0)}Z`
             const peakIndex = values.indexOf(max)
@@ -181,7 +184,13 @@ export function CheckInChart({
                       </g>
                     ))}
                     {timeTicks(start, end, plotWidth).map((tick) => (
-                      <text key={tick} x={x(tick)} y={HEIGHT - 6} textAnchor="middle">
+                      <text
+                        key={tick}
+                        x={x(tick)}
+                        y={HEIGHT - 6}
+                        // Near the right edge, end on the tick so the label is not cut off.
+                        textAnchor={x(tick) > width - PAD.right - 20 ? "end" : "middle"}
+                      >
                         {formatClock(
                           tick,
                           withDay && (tick + osloOffset(tick)) % (1440 * MINUTE) === 0,

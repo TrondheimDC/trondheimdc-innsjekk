@@ -327,7 +327,11 @@ function DashboardBody({
   const times = checkInTimes(dashboard)
   const numbers = keyNumbers(times)
   const withDay = dashboard.range.from !== dashboard.range.to
-  const nothing = times.length === 0 && dashboard.edits.total === 0 && dashboard.manual === 0
+  const nothing =
+    times.length === 0 &&
+    dashboard.edits.total === 0 &&
+    dashboard.manual === 0 &&
+    dashboard.prints.total === 0
 
   if (nothing) {
     const latest = dashboard.activeDays.at(-1)
@@ -560,6 +564,11 @@ function DoorFixes({ dashboard, checkIns }: { dashboard: Dashboard; checkIns: nu
           detail="sto ikke på listen"
         />
         <Stat
+          label="Skrevet ut på nytt"
+          value={numberFormat.format(dashboard.prints.reprints)}
+          detail={`for ${numberFormat.format(dashboard.prints.attendeesReprinted)} deltakere`}
+        />
+        <Stat
           label="Angret innsjekk"
           value={numberFormat.format(dashboard.undone)}
           detail="sjekket ut igjen"
@@ -641,6 +650,7 @@ function Breakdown({
               <th className={cn(head, "hidden text-right sm:table-cell")}>Travleste minutt</th>
               <th className={cn(head, "hidden text-right sm:table-cell")}>Endringer</th>
               <th className={cn(head, "hidden text-right sm:table-cell")}>Manuelle</th>
+              <th className={cn(head, "hidden text-right sm:table-cell")}>På nytt</th>
               <th className={cn(head, "hidden text-right md:table-cell")}>Første–siste</th>
             </tr>
           </thead>
@@ -671,6 +681,9 @@ function Breakdown({
                 </td>
                 <td className={cn(cell, "hidden text-right opacity-60 sm:table-cell")}>
                   {numberFormat.format(door.manual)}
+                </td>
+                <td className={cn(cell, "hidden text-right opacity-60 sm:table-cell")}>
+                  {numberFormat.format(door.reprints)}
                 </td>
                 <td
                   className={cn(
