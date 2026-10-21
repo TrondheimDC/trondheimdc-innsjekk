@@ -14,12 +14,12 @@ import { TdcLogo } from "@/components/tdc-logo"
 import { Button } from "@/components/ui/button"
 import { useSetCheckedIn } from "@/hooks/use-set-checked-in"
 import { PRINT_NOW_PARAM } from "@/lib/attendee-path"
-import { attendeeResponseSchema } from "@/lib/db/schema"
+import { fetchAttendee } from "@/lib/attendee-query"
 import { labelLine } from "@/lib/label-line"
 import { type PhonePlatform, platformFromNavigator } from "@/lib/platform"
 import { SCAN_AUTO_PRINT_DEFAULT, SCAN_AUTO_PRINT_KEY } from "@/lib/scan-settings"
 import { useLocalFlag } from "@/lib/use-local-flag"
-import { apiPath, cn } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 
 /** Where "next" goes: the search when staff came from it or the device has no scanner. */
 function NextButton({ toSearch }: { toSearch: boolean }) {
@@ -86,13 +86,7 @@ export function AttendeeScreen({
   const [overrideError, setOverrideError] = useState<string | null>(null)
   const query = useQuery({
     queryKey: ["attendee", id],
-    queryFn: async () => {
-      const response = await fetch(apiPath(`/api/attendees/${encodeURIComponent(id)}`))
-      if (response.status === 404) return null
-      if (!response.ok) throw new Error("lookup failed")
-      const body = attendeeResponseSchema.parse(await response.json())
-      return body.attendee
-    },
+    queryFn: () => fetchAttendee(id),
   })
 
   const setCheckedIn = useSetCheckedIn(id)

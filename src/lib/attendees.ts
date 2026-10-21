@@ -1,4 +1,5 @@
 import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm"
+import { z } from "zod"
 import { db } from "./db"
 import { createObjectId } from "./db/object-id"
 import {
@@ -8,6 +9,7 @@ import {
   checkEvents,
   type ImportedAttendee,
   type ManualAttendee,
+  type ManualAttendeeBody,
 } from "./db/schema"
 
 export type { Attendee }
@@ -44,7 +46,7 @@ export interface AttendeeRepository {
   ): Promise<Attendee | null>
   /** Manuell innsjekk: someone not on the Checkin list. Logged as a `create` event. */
   createManual(
-    values: CorrectAttendeeBody,
+    values: ManualAttendeeBody,
     actor?: { userId: string; name: string } | null,
   ): Promise<Attendee>
   /** Every manual attendee, newest first, with who added it. */
@@ -69,6 +71,16 @@ function effective(row: AttendeeRow): Attendee {
   const { nameOverride, companyOverride, roleOverride, ...rest } = row
   if (row.correctedAt == null) return rest
   return { ...rest, name: nameOverride, company: companyOverride, role: roleOverride }
+}
+
+/** Rows from before the reason field have none. */
+const manualCreateDetailSchema = z.object({ reason: z.string().nullish() })
+
+/** The reason typed at Manuell innsjekk, from the `create` event's detail. */
+function createReason(detail: string | null): string | null {
+  if (!detail) return null
+  const parsed = manualCreateDetailSchema.safeParse(JSON.parse(detail))
+  return parsed.success ? (parsed.data.reason ?? null) : null
 }
 
 const corrected = sql`${attendees.correctedAt} is not null`
@@ -196,7 +208,7 @@ export const attendeeRepository: AttendeeRepository = {
     })
   },
 
-  async createManual(values, actor) {
+  async createManual({ reason, ...values }, actor) {
     const now = new Date().toISOString()
     const id = createObjectId("man")
     return db.transaction(async (tx) => {
@@ -214,7 +226,7 @@ export const attendeeRepository: AttendeeRepository = {
         attendeeId: id,
         action: "create",
         createdAt: now,
-        detail: JSON.stringify({ to: values }),
+        detail: JSON.stringify({ to: values, reason }),
         actorUserId: actor?.userId ?? null,
         actorName: actor?.name ?? null,
       })
@@ -228,6 +240,7 @@ export const attendeeRepository: AttendeeRepository = {
         attendee: attendees,
         createdAt: checkEvents.createdAt,
         createdBy: checkEvents.actorName,
+        detail: checkEvents.detail,
       })
       .from(attendees)
       .innerJoin(
@@ -240,6 +253,7 @@ export const attendeeRepository: AttendeeRepository = {
       ...effective(row.attendee),
       createdAt: row.createdAt,
       createdBy: row.createdBy,
+      reason: createReason(row.detail),
     }))
   },
 

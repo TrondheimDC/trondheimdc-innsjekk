@@ -41,7 +41,7 @@ export const checkEvents = sqliteTable(
       .references(() => attendees.id),
     action: text("action", { enum: ["create", "in", "out", "correct"] }).notNull(),
     createdAt: text("created_at").notNull(),
-    /** JSON `{ from, to }` of name/company/role for `correct`; `{ to }` for `create`. */
+    /** JSON `{ from, to }` of name/company/role for `correct`; `{ to, reason }` for `create`. */
     detail: text("detail"),
     /** better-auth user id (printer door account or admin) that performed the action. */
     actorUserId: text("actor_user_id"),
@@ -101,12 +101,18 @@ export type CorrectAttendeeBody = z.output<typeof correctAttendeeBodySchema>
 export type CorrectAttendeeInput = z.input<typeof correctAttendeeBodySchema>
 
 /** Manuell innsjekk form + POST body: someone not on the Checkin list, typed in at the door. */
-export const manualAttendeeBodySchema = correctAttendeeBodySchema
+export const manualAttendeeBodySchema = correctAttendeeBodySchema.extend({
+  /** Why they are not on the list ("foredragsholder", "billett ikke funnet"). Optional. */
+  reason: optionalText({ max: 200 }),
+})
+export type ManualAttendeeBody = z.output<typeof manualAttendeeBodySchema>
+export type ManualAttendeeInput = z.input<typeof manualAttendeeBodySchema>
 
 /** Admin audit row: a manual attendee and the login that added it. */
 export const manualAttendeeSchema = attendeeSchema.extend({
   createdAt: z.string(),
   createdBy: z.string().nullable(),
+  reason: z.string().nullable(),
 })
 export type ManualAttendee = z.infer<typeof manualAttendeeSchema>
 

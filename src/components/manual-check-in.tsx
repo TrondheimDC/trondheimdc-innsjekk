@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod"
 import { LoaderCircle, Printer } from "lucide-react"
-import { useRouter } from "next/navigation"
 import { useId, useLayoutEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { BadgePreview } from "@/components/badge-preview"
@@ -16,33 +15,36 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useCreateAttendee } from "@/hooks/use-create-attendee"
-import { attendeePath } from "@/lib/attendee-path"
 import {
-  type CorrectAttendeeBody,
-  type CorrectAttendeeInput,
+  type Attendee,
+  type ManualAttendeeBody,
+  type ManualAttendeeInput,
   manualAttendeeBodySchema,
 } from "@/lib/db/schema"
 import { labelLine } from "@/lib/label-line"
 
 /**
- * Someone who is not on the Checkin list: type in the badge, then print and check in on the
- * attendee screen. The row and who added it are kept, so admin can see every manual badge.
+ * Someone who is not on the Checkin list: type in the badge, then print and check in. The row,
+ * the reason and who added it are kept, so admin can see every manual badge.
  */
 export function ManualCheckInDialog({
   open,
   onOpenChange,
   initialName,
+  onCreated,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   /** What staff searched for, so a miss turns into a badge without typing it twice. */
   initialName?: string
+  /** Saved: print and check in (the search's card or the attendee screen). */
+  onCreated: (attendee: Attendee) => void
 }) {
-  const router = useRouter()
   const [error, setError] = useState<string | null>(null)
   const nameId = useId()
   const companyId = useId()
   const roleId = useId()
+  const reasonId = useId()
   const create = useCreateAttendee()
 
   const {
@@ -51,9 +53,9 @@ export function ManualCheckInDialog({
     reset,
     watch,
     formState: { errors },
-  } = useForm<CorrectAttendeeInput, unknown, CorrectAttendeeBody>({
+  } = useForm<ManualAttendeeInput, unknown, ManualAttendeeBody>({
     resolver: zodResolver(manualAttendeeBodySchema),
-    defaultValues: { name: null, company: null, role: null },
+    defaultValues: { name: null, company: null, role: null, reason: null },
   })
 
   const [name, company, role] = watch(["name", "company", "role"])
@@ -62,22 +64,24 @@ export function ManualCheckInDialog({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when the dialog opens
   useLayoutEffect(() => {
     if (!open) return
-    reset({ name: initialName?.trim() || null, company: null, role: null })
+    reset({ name: initialName?.trim() || null, company: null, role: null, reason: null })
     setError(null)
   }, [open])
 
-  async function onSubmit(values: CorrectAttendeeBody) {
+  async function onSubmit(values: ManualAttendeeBody) {
     setError(null)
+    let attendee: Attendee
     try {
-      const attendee = await create.mutateAsync(values)
-      router.push(attendeePath(attendee.id, { fromSearch: true, printNow: true }))
+      attendee = await create.mutateAsync(values)
     } catch {
       setError("Klarte ikke å lagre deltakeren. Prøv igjen.")
+      return
     }
+    onOpenChange(false)
+    onCreated(attendee)
   }
 
-  // Navigating away: keep the button busy until the attendee screen takes over.
-  const busy = create.isPending || create.isSuccess
+  const busy = create.isPending
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -128,6 +132,18 @@ export function ManualCheckInDialog({
               className={attendeeFieldClass}
               autoComplete="off"
               {...register("role")}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor={reasonId} className="text-sm font-medium opacity-80">
+              Årsak <span className="font-normal opacity-70">(valgfritt)</span>
+            </label>
+            <input
+              id={reasonId}
+              className={attendeeFieldClass}
+              autoComplete="off"
+              placeholder="F.eks. foredragsholder"
+              {...register("reason")}
             />
           </div>
 

@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { attendeeResponseSchema, type CorrectAttendeeBody } from "@/lib/db/schema"
+import { attendeeResponseSchema, type ManualAttendeeBody } from "@/lib/db/schema"
 import { apiPath } from "@/lib/utils"
 
 /** Manuell innsjekk: add someone who is not on the Checkin list. */
@@ -9,7 +9,7 @@ export function useCreateAttendee() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (values: CorrectAttendeeBody) => {
+    mutationFn: async (values: ManualAttendeeBody) => {
       const response = await fetch(apiPath("/api/attendees"), {
         method: "POST",
         headers: { "content-type": "application/json" },

@@ -1,11 +1,12 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, Search, Settings, UserPlus, Users } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useDeferredValue, useEffect, useState } from "react"
+import { useDeferredValue, useEffect, useRef, useState } from "react"
 import { ManualCheckInDialog } from "@/components/manual-check-in"
+import { ScanResultSheet } from "@/components/scan-result-sheet"
 import { TdcLogo } from "@/components/tdc-logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,9 +19,16 @@ import {
   CommandLoading,
 } from "@/components/ui/command"
 import { attendeePath } from "@/lib/attendee-path"
+import { fetchAttendee } from "@/lib/attendee-query"
 import type { AttendeeStats } from "@/lib/attendees"
-import { attendeeStatsSchema, attendeesSearchResponseSchema } from "@/lib/db/schema"
+import { type Attendee, attendeeStatsSchema, attendeesSearchResponseSchema } from "@/lib/db/schema"
 import { labelLine } from "@/lib/label-line"
+import {
+  SCAN_AUTO_PRINT_DEFAULT,
+  SCAN_AUTO_PRINT_KEY,
+  SCAN_INLINE_DEFAULT,
+  SCAN_INLINE_KEY,
+} from "@/lib/scan-settings"
 import { setLocalFlag, useLocalFlag } from "@/lib/use-local-flag"
 import { apiPath } from "@/lib/utils"
 
@@ -36,8 +44,16 @@ export function SearchScreen({
   scanCamera: boolean
 }) {
   const router = useRouter()
+  const queryClient = useQueryClient()
   const [q, setQ] = useState("")
   const [manualOpen, setManualOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const inline = useLocalFlag(SCAN_INLINE_KEY, SCAN_INLINE_DEFAULT)
+  const autoPrintSetting = useLocalFlag(SCAN_AUTO_PRINT_KEY, SCAN_AUTO_PRINT_DEFAULT)
+  // A search home (PC/Mac at the door): picking a name is the decision, so Enter prints.
+  const autoPrint = !scanCamera || autoPrintSetting === true
+  const [card, setCard] = useState<{ attendee: Attendee; autoPrint: boolean } | null>(null)
+  const opening = useRef(false)
   const storedIncludeCheckedIn = useLocalFlag(INCLUDE_CHECKED_IN_KEY)
   const storedShowAll = useLocalFlag(SHOW_ALL_KEY)
   const [includeCheckedIn, setIncludeCheckedIn] = useState(false)
@@ -85,6 +101,58 @@ export function SearchScreen({
   // in underneath the idle state.
   const results = active ? (query.data ?? []) : []
 
+  function closeCard() {
+    setCard(null)
+    setQ("")
+    inputRef.current?.focus()
+  }
+
+  function showCard(attendee: Attendee, print: boolean) {
+    // Keys now belong to the card (Esc closes it), not to the search list behind it.
+    inputRef.current?.blur()
+    setCard({ attendee, autoPrint: print })
+  }
+
+  /** A result: the card over the search (fresh, so a check-in elsewhere shows), or the page. */
+  async function openAttendee(row: Attendee) {
+    if (inline === false) {
+      router.push(attendeePath(row.id, { fromSearch: true }))
+      return
+    }
+    if (opening.current) return
+    opening.current = true
+    try {
+      const fresh = await queryClient.fetchQuery({
+        queryKey: ["attendee", row.id],
+        queryFn: () => fetchAttendee(row.id),
+        staleTime: 0,
+      })
+      showCard(fresh ?? row, fresh != null && autoPrint)
+    } catch {
+      // Offline: show what the search had, but do not check in on stale data.
+      showCard(row, false)
+    } finally {
+      opening.current = false
+    }
+  }
+
+  // A card is up: typing starts the next search, so the keyboard flow never needs the mouse.
+  useEffect(() => {
+    if (!card) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.defaultPrevented || event.key.length !== 1) return
+      if (event.ctrlKey || event.metaKey || event.altKey) return
+      if (document.querySelector('[role="dialog"]')) return
+      if (event.target instanceof HTMLElement && event.target.closest("input, textarea")) return
+      setCard(null)
+      setQ("")
+      // Focus moves before the key lands, so the letter goes into the search.
+      inputRef.current?.focus()
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [card])
+
   function toggleIncludeCheckedIn() {
     const next = !includeCheckedIn
     setIncludeCheckedIn(next)
@@ -123,6 +191,7 @@ export function SearchScreen({
       >
         <div className="flex shrink-0 flex-col gap-3">
           <CommandInput
+            ref={inputRef}
             autoFocus
             value={q}
             onValueChange={setQ}
@@ -252,7 +321,7 @@ export function SearchScreen({
                       (keyword) => keyword != null,
                     )}
                     onSelect={() => {
-                      router.push(attendeePath(attendee.id, { fromSearch: true }))
+                      void openAttendee(attendee)
                     }}
                     className="flex-row items-center justify-between gap-3"
                     style={{ animationDelay: `${Math.min(index, 8) * 55}ms` }}
@@ -306,7 +375,26 @@ export function SearchScreen({
         open={manualOpen}
         onOpenChange={setManualOpen}
         initialName={searching ? deferredQ : undefined}
+        onCreated={(attendee) => {
+          if (inline === false) {
+            router.push(attendeePath(attendee.id, { fromSearch: true, printNow: true }))
+          } else {
+            showCard(attendee, true)
+          }
+        }}
       />
+
+      {/* The sheet fills its parent; fixed, so it dims the whole window, not only the column. */}
+      {card ? (
+        <div className="fixed inset-0 z-20">
+          <ScanResultSheet
+            attendee={card.attendee}
+            autoPrint={card.autoPrint}
+            onDismiss={closeCard}
+            onPrinted={closeCard}
+          />
+        </div>
+      ) : null}
     </main>
   )
 }

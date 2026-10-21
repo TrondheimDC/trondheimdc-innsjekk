@@ -15,11 +15,14 @@ export function SetupEntry({
   rawStep,
   initialOs,
   initialPrintMethod,
+  initialScanCamera,
   ...props
 }: SetupFlowProps & {
   rawStep: string | null
   initialOs: DesktopOs
   initialPrintMethod: PrintMethod
+  /** PC/Mac: the home picked earlier (search or scan); null before setup asked. */
+  initialScanCamera: boolean | null
 }) {
   const method = usePrintMethod(initialPrintMethod)
   if (method === "app") {
@@ -33,7 +36,13 @@ export function SetupEntry({
     )
   }
   if (method === "usb") {
-    return <UsbSetupFlow initialStep={rawStep} initialOs={initialOs} />
+    return (
+      <UsbSetupFlow
+        initialStep={rawStep}
+        initialOs={initialOs}
+        initialScanCamera={initialScanCamera}
+      />
+    )
   }
   return <SetupFlow {...props} />
 }

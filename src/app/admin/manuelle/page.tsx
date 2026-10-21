@@ -47,6 +47,12 @@ export default async function ManualAttendeesPage() {
                 <div className="min-w-0">
                   <p className="font-display text-2xl leading-tight break-words">{attendee.name}</p>
                   {line2 ? <p className="mt-1 text-base opacity-80">{line2}</p> : null}
+                  {attendee.reason ? (
+                    <p className="mt-3 text-base break-words">
+                      <span className="opacity-60">Årsak: </span>
+                      {attendee.reason}
+                    </p>
+                  ) : null}
                   <p className="mt-3 text-sm opacity-60">
                     {dateFormat.format(new Date(attendee.createdAt))}
                     {attendee.createdBy ? ` · ${attendee.createdBy}` : null}

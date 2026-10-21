@@ -6,8 +6,8 @@ import {
   Download,
   LogOut,
   MapPin,
+  PanelTop,
   Printer,
-  ScanLine,
   ScanQrCode,
   ShieldCheck,
   Smartphone,
@@ -168,21 +168,27 @@ export function SettingsScreen({
         />
 
         <SettingToggle
-          pressed={flagsReady ? scanInline === true || selfService === true : false}
-          onToggle={toggleScanInline}
+          pressed={flagsReady ? autoPrint === true || selfService === true || !scanCamera : false}
+          onToggle={toggleAutoPrint}
           disabled={!flagsReady || selfService === true || !scanCamera}
-          icon={<ScanLine className="size-5" aria-hidden />}
-          title="Vis resultat på skann"
-          description="Vis deltakeren over kameraet, ikke på en egen side."
+          icon={<Zap className="size-5" aria-hidden />}
+          title="Skriv ut med en gang"
+          description={
+            scanCamera
+              ? "Skriv ut automatisk for nye innsjekker."
+              : "Alltid på når søket er forsiden: Enter skriver ut og sjekker inn."
+          }
         />
 
         <SettingToggle
-          pressed={flagsReady ? autoPrint === true || selfService === true : false}
-          onToggle={toggleAutoPrint}
-          disabled={!flagsReady || selfService === true}
-          icon={<Zap className="size-5" aria-hidden />}
-          title="Skriv ut med en gang"
-          description="Skriv ut automatisk for nye innsjekker."
+          pressed={
+            flagsReady ? scanInline === false && !(scanCamera && selfService === true) : false
+          }
+          onToggle={toggleScanInline}
+          disabled={!flagsReady || (scanCamera && selfService === true)}
+          icon={<PanelTop className="size-5" aria-hidden />}
+          title="Egen deltakerside"
+          description="Åpne deltakeren på en egen side i stedet for et kort over skann og søk."
         />
 
         <Button

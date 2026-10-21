@@ -1,6 +1,15 @@
 "use client"
 
-import { Check, CircleCheck, Copy, Download, LoaderCircle, Printer } from "lucide-react"
+import {
+  Check,
+  CircleCheck,
+  Copy,
+  Download,
+  LoaderCircle,
+  Printer,
+  ScanLine,
+  Search,
+} from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState, useSyncExternalStore } from "react"
@@ -20,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { LabelPrintError, printBadge } from "@/lib/label-printer"
 import { type DesktopOs, desktopOsFromNavigator } from "@/lib/platform"
+import { setScanCamera } from "@/lib/scan-camera"
 import { markSetupSeen } from "@/lib/setup-seen"
 import { useLabelPrinter } from "@/lib/use-label-printer"
 import { apiPath } from "@/lib/utils"
@@ -39,14 +49,30 @@ const LINUX_COMMANDS = [
   "sudo modprobe -r usblp",
 ].join("\n")
 
-type UsbStepId = "usb" | "driver" | "connect" | "test-print"
+type UsbStepId = "mode" | "usb" | "driver" | "connect" | "test-print"
 
 /** Mac needs no driver; Windows swaps in WinUSB with Zadig; Linux adds a udev rule. */
 function stepsFor(os: DesktopOs): UsbStepId[] {
   return os === "windows" || os === "linux"
-    ? ["usb", "driver", "connect", "test-print"]
-    : ["usb", "connect", "test-print"]
+    ? ["mode", "usb", "driver", "connect", "test-print"]
+    : ["mode", "usb", "connect", "test-print"]
 }
+
+/** The door home: search (no camera) or the scanner. Writes the same cookie as Innstillinger. */
+const MODES = [
+  {
+    scanCamera: false,
+    icon: Search,
+    title: "Søk",
+    body: "Finn deltakeren på navn. Enter skriver ut og sjekker inn.",
+  },
+  {
+    scanCamera: true,
+    icon: ScanLine,
+    title: "Skann",
+    body: "Les QR-koden på billetten med kameraet.",
+  },
+] as const
 
 const DRIVER_COPY: Record<"windows" | "linux", { title: string; body: string }> = {
   windows: {
@@ -60,6 +86,10 @@ const DRIVER_COPY: Record<"windows" | "linux", { title: string; body: string }> 
 }
 
 const STEPS: Record<Exclude<UsbStepId, "driver">, { title: string; body: string }> = {
+  mode: {
+    title: "Søk eller skann?",
+    body: "Hvordan skal deltakerne finnes på denne maskinen? Kan endres i Innstillinger.",
+  },
   usb: {
     title: "Koble til med USB",
     body: "Sett USB-kabelen i printeren og maskinen, og slå printeren på.",
@@ -76,14 +106,17 @@ const STEPS: Record<Exclude<UsbStepId, "driver">, { title: string; body: string 
 
 const noopSubscribe = () => () => {}
 
-/** PC/Mac setup: USB cable → (Windows/Linux driver) → pick the printer → test print. */
+/** PC/Mac setup: search or scan → USB cable → (Windows/Linux driver) → pick the printer → test print. */
 export function UsbSetupFlow({
   initialStep,
   initialOs,
+  initialScanCamera,
 }: {
   initialStep: string | null
   /** From the request UA so the first paint already has the right steps. */
   initialOs: DesktopOs
+  /** The home chosen before, from the cookie; null until this device has chosen. */
+  initialScanCamera: boolean | null
 }) {
   const router = useRouter()
   const usb = useLabelPrinter()
@@ -94,9 +127,10 @@ export function UsbSetupFlow({
   )
   const stepIds = stepsFor(os)
   const [stepId, setStepId] = useState<UsbStepId>(() => {
-    const wanted = (initialStep ?? "usb") as UsbStepId
-    return stepsFor(initialOs).includes(wanted) ? wanted : "usb"
+    const wanted = (initialStep ?? "mode") as UsbStepId
+    return stepsFor(initialOs).includes(wanted) ? wanted : "mode"
   })
+  const [scanCamera, setScanCameraState] = useState(initialScanCamera)
   const step = Math.max(0, stepIds.indexOf(stepId))
   const [busy, setBusy] = useState(false)
   const [printed, setPrinted] = useState(false)
@@ -118,9 +152,15 @@ export function UsbSetupFlow({
     if (next) setStepId(next)
   }
 
+  function chooseMode(on: boolean) {
+    setScanCamera(on)
+    setScanCameraState(on)
+    go(1)
+  }
+
   function finish() {
     markSetupSeen()
-    router.push("/")
+    router.push(scanCamera === true ? "/" : "/sok")
   }
 
   async function copyCommands() {
@@ -180,7 +220,26 @@ export function UsbSetupFlow({
       </div>
 
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden">
-        {stepId === "usb" ? (
+        {stepId === "mode" ? (
+          <div className="flex w-full flex-col gap-3">
+            {MODES.map((mode) => (
+              <Button
+                key={mode.title}
+                type="button"
+                variant={scanCamera === mode.scanCamera ? "default" : "surface"}
+                aria-pressed={scanCamera === mode.scanCamera}
+                className="h-auto w-full items-start justify-start gap-4 px-5 py-5 text-left whitespace-normal"
+                onClick={() => chooseMode(mode.scanCamera)}
+              >
+                <mode.icon className="mt-0.5 size-6 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1 font-normal">
+                  <span className="block text-xl font-semibold">{mode.title}</span>
+                  <span className="mt-1 block text-base opacity-75">{mode.body}</span>
+                </span>
+              </Button>
+            ))}
+          </div>
+        ) : stepId === "usb" ? (
           <UsbCableIllustration className={artClassName} />
         ) : stepId === "driver" ? (
           os === "linux" ? (
@@ -290,7 +349,7 @@ export function UsbSetupFlow({
               </Button>
             )}
             <Button className="h-12 w-full text-base" disabled={!printed} onClick={finish}>
-              Begynn å skanne
+              {scanCamera === true ? "Begynn å skanne" : "Begynn å søke"}
             </Button>
             <Button variant="ghost" className="h-12 w-full text-base" onClick={finish}>
               Hopp over testen

@@ -9,6 +9,7 @@ import {
 } from "@/lib/platform"
 import { type PrinterSetupParams, printerSetupParamsFromSearch } from "@/lib/printer-setup"
 import { printerRepository } from "@/lib/printers"
+import { storedScanCamera } from "@/lib/scan-camera-server"
 import { resolveAndroidDownloadUrl } from "@/lib/smooth-print-apks"
 import { apiPath } from "@/lib/utils"
 import { SetupEntry } from "./setup-entry"
@@ -74,6 +75,7 @@ export default async function SetupPage({
       ) : null}
       <SetupEntry
         rawStep={query.step ?? null}
+        initialScanCamera={await storedScanCamera()}
         initialOs={desktopOsFromName(os.name)}
         initialPrintMethod={initialPrintMethod}
         androidUrl={androidUrl}

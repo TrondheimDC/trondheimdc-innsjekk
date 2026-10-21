@@ -65,14 +65,15 @@ Keep the address bar in sync with the wizard so staff can refresh and deeplink.
 - Happy path: install → printer Bluetooth on → **Skann QR** (Start kamera) → Smooth Print `connect` → test print. **iOS inserts OS Bluetooth pair before connect** (MFi). Fallback from scan: **Manuelt oppsett** → iOS: OS Bluetooth pair → select in Smooth Print; Android: connect via Bluetooth inside Smooth Print (no OS pair) → confirm against a screenshot of the connected state → test print.
 - Android connect `serialnum`/`model` use the stored barcode serial and `QL-820NWBc`. iOS connect uses last-9 serial and `QL-820NWB` (matches Smooth Print’s paired list).
 - Android checks in through the TDC Innsjekk app (`docs/android-app.md`): no Smooth Print. In the app, `/oppsett` is `bt-on` → `scan` (or `select`) → `connect` → `test-print`, printing over Bluetooth. While the app is the active APK (Admin → Android-app), Android browsers are sent to `/last-ned` after login; activating a Smooth Print APK, or none, rolls Android back to the Smooth Print steps above.
-- PC/Mac (not iOS/Android) get the USB wizard instead: `step` = `usb` | `driver` | `connect` | `test-print`. The OS comes from the UA: `driver` is Zadig on Windows, a udev rule on Linux, and skipped on Mac. WebUSB in Chrome/Edge; no Smooth Print.
+- PC/Mac (not iOS/Android) get the USB wizard instead: `step` = `mode` | `usb` | `driver` | `connect` | `test-print`. The OS comes from the UA: `driver` is Zadig on Windows, a udev rule on Linux, and skipped on Mac. WebUSB in Chrome/Edge; no Smooth Print.
 - Android: after install, press Ferdig — do **not** open Smooth Print. A cold start on connect asks for permissions/terms, then returns to the browser. Force-close only before test print so the overlay dialog appears.
 
 ## Door home: scanner or search
 
-- `tdc-scan-camera-on` cookie (Innstillinger → «Skann med kamera») picks the home: on → `/` is the scanner; off → `/` redirects to `/sok` (a PC/Mac at the door). Unset: setup writes it from the device; otherwise Windows/Linux default off.
-- From the search, open attendees with `attendeePath(id, { fromSearch: true })` (`?fra=sok`), so «Søk neste» / Esc lead back to `/sok`. The Smooth Print callback keeps `fra`.
-- «Manuell innsjekk» (search) adds someone not on the Checkin list: a `man_…` attendee with `source = manual` and a `create` check event (who/when). Imports never soft-delete these. Admin → Manuelle lists them.
+- `tdc-scan-camera-on` cookie (Innstillinger → «Skann med kamera») picks the home: on → `/` is the scanner; off → `/` redirects to `/sok` (a PC/Mac at the door). The PC/Mac setup asks first (`step=mode`: Søk / Skann); unset otherwise defaults from the device (Windows/Linux off).
+- Picking a search result shows the same card as a scan (`ScanResultSheet`) over the search: «Ny innsjekk» prints and checks in at once on a search home (else per «Skriv ut med en gang»), «Allerede innsjekket» asks before printing again. Esc closes; typing starts the next search.
+- `/deltaker/[id]` only when «Egen deltakerside» is on (the inverted `tdc-scan-inline` flag). Then open it with `attendeePath(id, { fromSearch: true })` (`?fra=sok`), so «Søk neste» / Esc lead back to `/sok`. The Smooth Print callback keeps `fra`.
+- «Manuell innsjekk» (search) adds someone not on the Checkin list: a `man_…` attendee with `source = manual` and a `create` check event (who/when, optional `reason` in the detail). Imports never soft-delete these. Admin → Manuelle lists them.
 
 ## Browser defaults
 

@@ -1,8 +1,11 @@
-/** Stay on `/` and show the attendee over the camera instead of `/deltaker/[id]`. */
+/**
+ * Show the attendee as a card over the scanner or the search instead of `/deltaker/[id]`.
+ * Settings shows it inverted, as «Egen deltakerside».
+ */
 export const SCAN_INLINE_KEY = "tdc-scan-inline"
 export const SCAN_INLINE_DEFAULT = true
 
-/** Auto check-in + print when the attendee is not already checked in. */
+/** Auto check-in + print when the attendee is not already checked in. Always on for a search home. */
 export const SCAN_AUTO_PRINT_KEY = "tdc-scan-auto-print"
 export const SCAN_AUTO_PRINT_DEFAULT = false
 
