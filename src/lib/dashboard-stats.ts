@@ -33,11 +33,10 @@ export function fitsInterval(times: number[], interval: Interval): boolean {
   return span / (interval * MINUTE) + 1 <= MAX_BUCKETS || interval === 60
 }
 
-/** The finest interval that keeps the bars readable: per minute for a normal morning at the door. */
+/** Five minutes reads as a smooth curve for a morning at the door; per minute is one tap away. */
 export function defaultInterval(times: number[]): Interval {
   if (times.length === 0) return 5
   const minutes = (times.at(-1)! - times[0]!) / MINUTE
-  if (minutes <= 180) return 1
   if (minutes <= 720) return 5
   if (minutes <= 48 * 60) return 15
   return 60

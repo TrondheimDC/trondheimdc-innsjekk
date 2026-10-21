@@ -19,8 +19,10 @@ import {
   rangeSearch,
 } from "@/lib/dashboard-data"
 import {
+  type Bucket,
   buckets,
   checkInTimes,
+  type DoorRow,
   defaultInterval,
   doorRows,
   fitsInterval,
@@ -33,7 +35,7 @@ import {
   percentFormat,
 } from "@/lib/dashboard-stats"
 import { apiPath, cn } from "@/lib/utils"
-import { BucketTable, CheckInBars, CumulativeLine } from "./charts"
+import { type ChartMode, CheckInChart, type TooltipRow } from "./charts"
 
 async function fetchDashboard(range: DashboardRange): Promise<Dashboard> {
   const response = await fetch(apiPath(`/api/dashboard?${rangeSearch(range)}`))
@@ -111,27 +113,23 @@ export function DashboardView({
   const dashboard = query.data
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-      <header className="pt-2">
-        <h1 className="text-4xl">Dashboard</h1>
-        <p className="mt-2 text-base opacity-70">
-          Hvor fort alle kom inn, og hvor mye som måtte rettes i døra.
-        </p>
+    <main className="mx-auto flex w-full max-w-6xl flex-col gap-10 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:p-6">
+      <header className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <h1 className="text-3xl">Dashboard</h1>
+        <RangePicker
+          range={range}
+          today={today}
+          activeDays={dashboard?.activeDays ?? []}
+          onChange={pick}
+        />
       </header>
-
-      <RangePicker
-        range={range}
-        today={today}
-        activeDays={dashboard?.activeDays ?? []}
-        onChange={pick}
-      />
 
       {query.isError && !dashboard ? (
         <p className="text-[var(--color-bg-danger)]">Klarte ikke å hente tallene. Prøv igjen.</p>
       ) : dashboard ? (
         <div
           className={cn(
-            "flex flex-col gap-6 transition-opacity",
+            "flex flex-col gap-10 transition-opacity",
             query.isPlaceholderData && "opacity-60",
           )}
         >
@@ -144,6 +142,60 @@ export function DashboardView({
         </div>
       ) : null}
     </main>
+  )
+}
+
+/** A row of pill buttons with one picked, like the range and chart toggles. */
+function Segmented<T extends string | number>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: { value: T; label: string; disabled?: boolean }[]
+  value: T
+  onChange: (value: T) => void
+  label: string
+}) {
+  return (
+    <fieldset className="flex shrink-0 gap-0.5 rounded-xl bg-white/5 p-1">
+      <legend className="sr-only">{label}</legend>
+      {options.map((option) => (
+        <Button
+          key={option.value}
+          size="xs"
+          variant="ghost"
+          aria-pressed={option.value === value}
+          disabled={option.disabled}
+          className={cn(
+            "h-7 px-2.5 text-xs opacity-60 hover:bg-white/10 hover:opacity-100",
+            option.value === value && "bg-white/10 opacity-100",
+          )}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </Button>
+      ))}
+    </fieldset>
+  )
+}
+
+/** Small sans heading, so the numbers stay the loudest thing on the page. */
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-sm" style={{ fontFamily: "var(--font-family-sans)", fontWeight: 600 }}>
+      {children}
+    </h2>
+  )
+}
+
+function Stat({ label, value, detail }: { label: string; value: string; detail?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs opacity-60">{label}</p>
+      <p className="mt-1 text-lg font-semibold">{value}</p>
+      {detail ? <p className="text-xs opacity-50">{detail}</p> : null}
+    </div>
   )
 }
 
@@ -177,17 +229,19 @@ function RangePicker({
     onChange(next)
   }
 
+  const step = "h-7 px-2 opacity-60 hover:bg-white/10 hover:opacity-100"
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 items-center gap-0.5 rounded-xl bg-white/5 p-1">
       {single ? (
         <Button
-          variant="surface"
-          size="icon"
+          variant="ghost"
+          size="xs"
           aria-label="Dagen før"
-          className="shrink-0"
+          className={cn(step, "shrink-0")}
           onClick={() => onChange({ from: addDays(range.from, -1), to: addDays(range.from, -1) })}
         >
-          <ChevronLeft className="size-5" aria-hidden />
+          <ChevronLeft className="size-4" aria-hidden />
         </Button>
       ) : null}
       <Popover
@@ -198,12 +252,16 @@ function RangePicker({
         }}
       >
         <PopoverTrigger asChild>
-          <Button variant="surface" className="min-w-0 whitespace-nowrap">
-            <CalendarDays className="size-5 shrink-0" aria-hidden />
+          <Button
+            variant="ghost"
+            size="xs"
+            className="h-7 min-w-0 bg-white/10 px-2.5 text-xs whitespace-nowrap hover:bg-white/15"
+          >
+            <CalendarDays className="size-3.5 shrink-0" aria-hidden />
             <span className="truncate">{rangeLabel(range)}</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-auto p-0">
+        <PopoverContent align="end" className="w-auto p-0">
           <div className="flex flex-col gap-1 p-2">
             {presets.map((preset) => (
               <Button
@@ -241,13 +299,13 @@ function RangePicker({
       </Popover>
       {single ? (
         <Button
-          variant="surface"
-          size="icon"
+          variant="ghost"
+          size="xs"
           aria-label="Dagen etter"
-          className="shrink-0"
+          className={cn(step, "shrink-0")}
           onClick={() => onChange({ from: addDays(range.from, 1), to: addDays(range.from, 1) })}
         >
-          <ChevronRight className="size-5" aria-hidden />
+          <ChevronRight className="size-4" aria-hidden />
         </Button>
       ) : null}
     </div>
@@ -265,6 +323,7 @@ function DashboardBody({
   onInterval: (interval: Interval) => void
   onLatestDay: (day: string) => void
 }) {
+  const [mode, setMode] = useState<ChartMode>("interval")
   const times = checkInTimes(dashboard)
   const numbers = keyNumbers(times)
   const withDay = dashboard.range.from !== dashboard.range.to
@@ -274,7 +333,7 @@ function DashboardBody({
     const latest = dashboard.activeDays.at(-1)
     const showLatest = latest && latest !== dashboard.range.from
     return (
-      <section className="flex flex-col items-center gap-4 rounded-2xl bg-[var(--color-bg-surface)] px-6 py-10 text-center">
+      <section className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 px-6 py-10 text-center">
         <NoCheckInsIllustration className="max-w-64" />
         <h2 className="text-2xl">Ingen innsjekk i perioden</h2>
         {showLatest ? (
@@ -290,131 +349,180 @@ function DashboardBody({
 
   const interval = picked && fitsInterval(times, picked) ? picked : defaultInterval(times)
   const rows = buckets(times, interval)
-  const start = rows[0]?.start ?? 0
-  const end = rows.length > 0 ? rows.at(-1)!.start + interval * 60_000 : 0
+  const doors = doorRows(dashboard)
+  const doorNames = new Map(doors.map((door) => [door.key, door.name]))
   const share = dashboard.totalAttendees > 0 ? times.length / dashboard.totalAttendees : null
+  const size = interval * 60_000
+
+  function breakdown(bucket: Bucket): TooltipRow[] {
+    const counts = new Map<string, number>()
+    for (const checkIn of dashboard.checkIns) {
+      const at = Date.parse(checkIn.at)
+      if (at < bucket.start || at >= bucket.start + size) continue
+      counts.set(checkIn.door, (counts.get(checkIn.door) ?? 0) + 1)
+    }
+    return [...counts]
+      .map(([key, count]) => ({ name: doorNames.get(key) ?? "Ukjent", count }))
+      .sort((a, b) => b.count - a.count)
+  }
+
+  const marks =
+    numbers.half != null && numbers.ninety != null
+      ? [
+          { label: `50 % · ${formatClock(numbers.half, withDay)}`, at: numbers.half, share: 0.5 },
+          {
+            label: `90 % · ${formatClock(numbers.ninety, withDay)}`,
+            at: numbers.ninety,
+            share: 0.9,
+          },
+        ].map((mark) => ({ ...mark, value: Math.ceil(times.length * mark.share) }))
+      : []
+
+  // Over several days a duration from the very first check-in says nothing; show when.
+  const reached = (at: number | null) =>
+    at == null || numbers.first == null
+      ? { value: "–" }
+      : withDay
+        ? { value: formatClock(at, true) }
+        : { value: formatDuration(at - numbers.first), detail: `kl. ${formatClock(at)}` }
+  const clock = (at: number) => `${withDay ? "" : "kl. "}${formatClock(at, withDay)}`
 
   return (
     <>
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl bg-[var(--color-bg-surface)] px-5 py-4 sm:col-span-2 lg:row-span-2">
-          <p className="text-sm opacity-70">Innsjekket</p>
-          <p className="mt-1 font-sans text-6xl font-semibold">
-            {numberFormat.format(times.length)}
-          </p>
-          <p className="mt-2 text-base opacity-70">
-            av {numberFormat.format(dashboard.totalAttendees)} påmeldte
-            {share != null ? ` · ${percentFormat.format(share)}` : null}
-          </p>
-          {share != null ? (
-            <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-[var(--color-fg-brand)]"
-                style={{ width: `${Math.min(100, share * 100)}%` }}
-              />
-            </div>
-          ) : null}
+      <section className="grid gap-8 lg:grid-cols-[17rem_1fr]">
+        <div className="flex flex-col gap-6">
+          <div>
+            <p className="text-5xl font-semibold">{numberFormat.format(times.length)}</p>
+            <p className="mt-1 text-xs opacity-60">
+              innsjekket
+              {share != null
+                ? ` · ${percentFormat.format(share)} av ${numberFormat.format(dashboard.totalAttendees)} påmeldte`
+                : null}
+            </p>
+          </div>
+          <DoorList doors={doors} total={times.length} />
         </div>
-        <Tile
-          label="Første og siste"
-          value={
-            numbers.first != null && numbers.last != null
-              ? `${formatClock(numbers.first, withDay)}–${formatClock(numbers.last, withDay)}`
-              : "–"
-          }
-        />
-        <Tile
-          label="Travleste minutt"
-          value={numbers.peakMinute ? numberFormat.format(numbers.peakMinute.count) : "–"}
-          detail={
-            numbers.peakMinute
-              ? `${withDay ? "" : "kl. "}${formatClock(numbers.peakMinute.start, withDay)}`
-              : undefined
-          }
-        />
-        <Tile
-          label="Travleste kvarter"
-          value={numbers.peakQuarter ? numberFormat.format(numbers.peakQuarter.count) : "–"}
-          detail={
-            numbers.peakQuarter
-              ? `fra ${withDay ? "" : "kl. "}${formatClock(numbers.peakQuarter.start, withDay)}`
-              : undefined
-          }
-        />
-        <Tile
-          label="Halvparten inne"
-          // Over several days a duration from the very first check-in says nothing; show when.
-          value={
-            numbers.half == null || numbers.first == null
-              ? "–"
-              : withDay
-                ? formatClock(numbers.half, true)
-                : formatDuration(numbers.half - numbers.first)
-          }
-          detail={
-            numbers.ninety == null || numbers.half == null || numbers.first == null
-              ? undefined
-              : withDay
-                ? `90 % ${formatClock(numbers.ninety, true)}`
-                : `kl. ${formatClock(numbers.half)} · 90 % etter ${formatDuration(numbers.ninety - numbers.first)}`
-          }
-        />
-      </section>
 
-      {rows.length > 0 ? (
-        <section className="flex flex-col gap-4 rounded-2xl bg-[var(--color-bg-surface)] px-5 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h2 className="text-2xl">Innsjekk per {INTERVAL_LABELS[interval]}</h2>
+              <SectionTitle>
+                {mode === "interval"
+                  ? `Innsjekk per ${INTERVAL_LABELS[interval]}`
+                  : "Innsjekket totalt"}
+              </SectionTitle>
               {numbers.perMinute != null && !withDay ? (
-                <p className="text-sm opacity-70">
+                <p className="text-xs opacity-50">
                   Snitt {numberFormat.format(Math.round(numbers.perMinute * 10) / 10)} i minuttet
                 </p>
               ) : null}
             </div>
-            <div className="flex gap-1">
-              {INTERVALS.map((option) => (
-                <Button
-                  key={option}
-                  size="sm"
-                  variant={option === interval ? "default" : "ghost"}
-                  aria-pressed={option === interval}
-                  disabled={!fitsInterval(times, option)}
-                  onClick={() => onInterval(option)}
-                >
-                  {INTERVAL_LABELS[option]}
-                </Button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              <Segmented
+                label="Visning"
+                value={mode}
+                onChange={setMode}
+                options={[
+                  { value: "interval", label: "Per intervall" },
+                  { value: "total", label: "Totalt" },
+                ]}
+              />
+              <Segmented
+                label="Intervall"
+                value={interval}
+                onChange={onInterval}
+                options={INTERVALS.map((option) => ({
+                  value: option,
+                  label: INTERVAL_LABELS[option],
+                  disabled: !fitsInterval(times, option),
+                }))}
+              />
             </div>
           </div>
-          <CheckInBars key={interval} rows={rows} interval={interval} withDay={withDay} />
-          <h2 className="pt-2 text-2xl">Innsjekket totalt</h2>
-          <CumulativeLine
-            times={times}
-            start={start}
-            end={end}
-            totalAttendees={dashboard.totalAttendees}
+          <CheckInChart
+            key={`${mode}-${interval}`}
+            rows={rows}
+            interval={interval}
+            mode={mode}
             withDay={withDay}
+            marks={marks}
+            breakdown={breakdown}
           />
-          <BucketTable rows={rows} interval={interval} withDay={withDay} />
-        </section>
-      ) : null}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Tempo</SectionTitle>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
+          <Stat
+            label="Første innsjekk"
+            value={numbers.first != null ? formatClock(numbers.first, withDay) : "–"}
+          />
+          <Stat
+            label="Siste innsjekk"
+            value={numbers.last != null ? formatClock(numbers.last, withDay) : "–"}
+          />
+          <Stat
+            label="Travleste minutt"
+            value={numbers.peakMinute ? numberFormat.format(numbers.peakMinute.count) : "–"}
+            detail={numbers.peakMinute ? clock(numbers.peakMinute.start) : undefined}
+          />
+          <Stat
+            label="Travleste kvarter"
+            value={numbers.peakQuarter ? numberFormat.format(numbers.peakQuarter.count) : "–"}
+            detail={numbers.peakQuarter ? `fra ${clock(numbers.peakQuarter.start)}` : undefined}
+          />
+          <Stat label="Halvparten inne" {...reached(numbers.half)} />
+          <Stat label="90 % inne" {...reached(numbers.ninety)} />
+        </div>
+      </section>
 
       <DoorFixes dashboard={dashboard} checkIns={times.length} />
-      <Doors dashboard={dashboard} withDay={withDay} />
+      <Breakdown
+        doors={doors}
+        rows={rows}
+        interval={interval}
+        withDay={withDay}
+        total={times.length}
+      />
     </>
   )
 }
 
-function Tile({ label, value, detail }: { label: string; value: string; detail?: string }) {
+/** Hero sidebar: who carried the queue, busiest first. */
+function DoorList({ doors, total }: { doors: DoorRow[]; total: number }) {
+  const shown = doors.filter((door) => door.checkIns > 0).slice(0, 5)
+  if (shown.length === 0) return null
   return (
-    <div className="rounded-2xl bg-[var(--color-bg-surface)] px-5 py-4">
-      <p className="text-sm opacity-70">{label}</p>
-      <p className="mt-1 text-3xl font-semibold">{value}</p>
-      {detail ? <p className="mt-1 text-sm opacity-70">{detail}</p> : null}
-    </div>
+    <ul className="flex flex-col gap-4">
+      {shown.map((door) => {
+        const share = total > 0 ? door.checkIns / total : 0
+        return (
+          <li key={door.key}>
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="truncate text-sm">{door.name}</span>
+              <span className="text-sm font-semibold tabular-nums">
+                {numberFormat.format(door.checkIns)}
+              </span>
+            </div>
+            <p className="text-xs opacity-50">
+              {percentFormat.format(share)} · {numberFormat.format(door.edits)}{" "}
+              {door.edits === 1 ? "endring" : "endringer"}
+            </p>
+            <div className="mt-1.5 h-0.5 rounded-full bg-white/5">
+              <div
+                className="h-full rounded-full bg-[var(--color-fg-brand)]"
+                style={{ width: `${share * 100}%` }}
+              />
+            </div>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
+
+const FIELD_SHADES = ["bg-white/90", "bg-white/60", "bg-white/40", "bg-white/20"]
 
 /** How much attendee info had to be fixed: edits, names typed in, people not on the list. */
 function DoorFixes({ dashboard, checkIns }: { dashboard: Dashboard; checkIns: number }) {
@@ -425,47 +533,58 @@ function DoorFixes({ dashboard, checkIns }: { dashboard: Dashboard; checkIns: nu
     { label: "Bedrift", count: edits.company },
     { label: "Stilling", count: edits.role },
   ]
-  const most = Math.max(1, ...fields.map((field) => field.count))
+  const changed = fields.reduce((sum, field) => sum + field.count, 0)
 
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-2xl">Rettet i døra</h2>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Tile
+      <SectionTitle>Rettet i døra</SectionTitle>
+      <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
+        <Stat
           label="Endringer"
           value={numberFormat.format(edits.total)}
           detail={`på ${numberFormat.format(edits.attendees)} deltakere`}
         />
-        <Tile
+        <Stat
           label="Andel rettet"
           value={checkIns > 0 ? percentFormat.format(edits.attendees / checkIns) : "–"}
           detail="av de innsjekkede"
         />
-        <Tile
+        <Stat
+          label="Navn fylt inn"
+          value={numberFormat.format(edits.namesFilled)}
+          detail="billett uten navn"
+        />
+        <Stat
           label="Manuelle"
           value={numberFormat.format(dashboard.manual)}
           detail="sto ikke på listen"
         />
-        <Tile
+        <Stat
           label="Angret innsjekk"
           value={numberFormat.format(dashboard.undone)}
           detail="sjekket ut igjen"
         />
       </div>
-      {edits.total > 0 ? (
-        <div className="rounded-2xl bg-[var(--color-bg-surface)] px-5 py-4">
-          <h3 className="text-base opacity-70">Hva ble rettet</h3>
-          <ul className="mt-3 flex flex-col gap-2">
-            {fields.map((field) => (
-              <li key={field.label} className="grid grid-cols-[8rem_1fr_3rem] items-center gap-3">
-                <span className="text-sm">{field.label}</span>
-                <span className="h-3 overflow-hidden rounded-full bg-white/5">
-                  <span
-                    className="block h-full rounded-r-[4px] bg-[var(--color-fg-brand)]"
-                    style={{ width: `${(field.count / most) * 100}%` }}
-                  />
-                </span>
-                <span className="text-right text-sm tabular-nums">
+      {changed > 0 ? (
+        <div className="mt-2 flex max-w-xl flex-col gap-2.5">
+          <p className="text-xs opacity-60">Hva ble rettet</p>
+          <div className="flex h-2 gap-0.5">
+            {fields.map((field, i) =>
+              field.count > 0 ? (
+                <div
+                  key={field.label}
+                  className={cn("h-full rounded-full", FIELD_SHADES[i])}
+                  style={{ width: `${(field.count / changed) * 100}%` }}
+                />
+              ) : null,
+            )}
+          </div>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            {fields.map((field, i) => (
+              <li key={field.label} className="flex items-center gap-1.5">
+                <span className={cn("size-2 rounded-sm", FIELD_SHADES[i])} aria-hidden />
+                <span className="opacity-60">{field.label}</span>
+                <span className="font-semibold tabular-nums">
                   {numberFormat.format(field.count)}
                 </span>
               </li>
@@ -477,61 +596,134 @@ function DoorFixes({ dashboard, checkIns }: { dashboard: Dashboard; checkIns: nu
   )
 }
 
-/** Per printer (or admin login): who carried the queue. */
-function Doors({ dashboard, withDay }: { dashboard: Dashboard; withDay: boolean }) {
-  const rows = doorRows(dashboard)
-  if (rows.length === 0) return null
-  const most = Math.max(1, ...rows.map((row) => row.checkIns))
-  const total = dashboard.checkIns.length
+/** Per printer, or per interval: the same numbers as the chart, for reading without hovering. */
+function Breakdown({
+  doors,
+  rows,
+  interval,
+  withDay,
+  total,
+}: {
+  doors: DoorRow[]
+  rows: Bucket[]
+  interval: Interval
+  withDay: boolean
+  total: number
+}) {
+  const [view, setView] = useState<"printer" | "time">("printer")
+  const size = interval * 60_000
+  const most = Math.max(1, ...rows.map((row) => row.count))
+  const head = "px-2 py-2 text-xs font-normal opacity-50"
+  const cell = "px-2 py-3"
 
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-2xl">Per printer</h2>
-      <div className="overflow-x-auto rounded-2xl bg-[var(--color-bg-surface)]">
-        <table className="w-full min-w-[40rem] text-sm tabular-nums">
-          <thead className="text-left opacity-70">
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-3">
+        <SectionTitle>Fordeling</SectionTitle>
+        <Segmented
+          label="Fordeling"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "printer", label: "Printer" },
+            { value: "time", label: "Tid" },
+          ]}
+        />
+      </div>
+      {view === "printer" ? (
+        <table className="w-full text-sm tabular-nums">
+          <thead className="border-b border-white/10 text-left">
             <tr>
-              <th className="px-4 py-3 font-medium">Printer</th>
-              <th className="px-4 py-3 font-medium">Innsjekk</th>
-              <th className="px-4 py-3 text-right font-medium">Travleste minutt</th>
-              <th className="px-4 py-3 text-right font-medium">Endringer</th>
-              <th className="px-4 py-3 text-right font-medium">Manuelle</th>
-              <th className="px-4 py-3 text-right font-medium">Første–siste</th>
+              <th className={cn(head, "w-8")}>#</th>
+              <th className={head}>Printer</th>
+              <th className={cn(head, "text-right")}>Innsjekk</th>
+              <th className={cn(head, "text-right")}>Andel</th>
+              <th className={cn(head, "hidden text-right sm:table-cell")}>Travleste minutt</th>
+              <th className={cn(head, "hidden text-right sm:table-cell")}>Endringer</th>
+              <th className={cn(head, "hidden text-right sm:table-cell")}>Manuelle</th>
+              <th className={cn(head, "hidden text-right md:table-cell")}>Første–siste</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => (
-              <tr key={row.key} className="border-t border-white/10">
-                <td className="px-4 py-3 text-base break-words">{row.name}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="w-10 text-right">{numberFormat.format(row.checkIns)}</span>
-                    <span className="h-2 w-28 overflow-hidden rounded-full bg-white/5">
-                      <span
-                        className="block h-full rounded-r-[4px] bg-[var(--color-fg-brand)]"
-                        style={{ width: `${(row.checkIns / most) * 100}%` }}
-                      />
-                    </span>
-                    {total > 0 ? (
-                      <span className="opacity-60">
-                        {percentFormat.format(row.checkIns / total)}
-                      </span>
-                    ) : null}
+            {doors.map((door, i) => (
+              <tr key={door.key} className="border-b border-white/5">
+                <td className={cn(cell, "opacity-50")}>{i + 1}</td>
+                <td className={cell}>
+                  <span className="break-words">{door.name}</span>
+                  <div className="mt-1.5 h-0.5 max-w-48 rounded-full bg-white/5">
+                    <div
+                      className="h-full rounded-full bg-[var(--color-fg-brand)]"
+                      style={{ width: `${total > 0 ? (door.checkIns / total) * 100 : 0}%` }}
+                    />
                   </div>
                 </td>
-                <td className="px-4 py-3 text-right">{numberFormat.format(row.peakMinute)}</td>
-                <td className="px-4 py-3 text-right">{numberFormat.format(row.edits)}</td>
-                <td className="px-4 py-3 text-right">{numberFormat.format(row.manual)}</td>
-                <td className="px-4 py-3 text-right whitespace-nowrap">
-                  {row.first != null && row.last != null
-                    ? `${formatClock(row.first, withDay)}–${formatClock(row.last, withDay)}`
+                <td className={cn(cell, "text-right font-semibold")}>
+                  {numberFormat.format(door.checkIns)}
+                </td>
+                <td className={cn(cell, "text-right opacity-60")}>
+                  {total > 0 ? percentFormat.format(door.checkIns / total) : "–"}
+                </td>
+                <td className={cn(cell, "hidden text-right opacity-60 sm:table-cell")}>
+                  {numberFormat.format(door.peakMinute)}
+                </td>
+                <td className={cn(cell, "hidden text-right opacity-60 sm:table-cell")}>
+                  {numberFormat.format(door.edits)}
+                </td>
+                <td className={cn(cell, "hidden text-right opacity-60 sm:table-cell")}>
+                  {numberFormat.format(door.manual)}
+                </td>
+                <td
+                  className={cn(
+                    cell,
+                    "hidden text-right whitespace-nowrap opacity-60 md:table-cell",
+                  )}
+                >
+                  {door.first != null && door.last != null
+                    ? `${formatClock(door.first, withDay)}–${formatClock(door.last, withDay)}`
                     : "–"}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
+      ) : (
+        <div className="max-h-[28rem] overflow-y-auto">
+          <table className="w-full text-sm tabular-nums">
+            <thead className="sticky top-0 border-b border-white/10 bg-[var(--color-bg-base)] text-left">
+              <tr>
+                <th className={head}>Tid</th>
+                <th className={cn(head, "text-right")}>Innsjekk</th>
+                <th className={cn(head, "text-right")}>Totalt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows
+                .filter((row) => row.count > 0)
+                .map((row) => (
+                  <tr key={row.start} className="border-b border-white/5">
+                    <td className={cell}>
+                      {interval === 1
+                        ? formatClock(row.start, withDay)
+                        : `${formatClock(row.start, withDay)}–${formatClock(row.start + size)}`}
+                      <div className="mt-1.5 h-0.5 max-w-48 rounded-full bg-white/5">
+                        <div
+                          className="h-full rounded-full bg-[var(--color-fg-brand)]"
+                          style={{ width: `${(row.count / most) * 100}%` }}
+                        />
+                      </div>
+                    </td>
+                    <td className={cn(cell, "text-right font-semibold")}>
+                      {numberFormat.format(row.count)}
+                    </td>
+                    <td className={cn(cell, "text-right opacity-60")}>
+                      {numberFormat.format(row.total)}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   )
 }
