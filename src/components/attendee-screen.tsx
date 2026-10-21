@@ -119,40 +119,44 @@ export function AttendeeScreen({
 
   if (query.isError) {
     return (
-      <main className="attendee-reveal mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <p className="text-sm tracking-wide text-[var(--color-bg-danger)]">Noe gikk galt</p>
-          <h1 className="text-4xl">Kunne ikke hente deltakeren</h1>
-          <p className="max-w-[18rem] text-base opacity-60">
-            Sjekk nettverket og prøv å skanne på nytt.
-          </p>
-        </div>
-        <NextButton toSearch={toSearch} />
-      </main>
+      <div className="overflow-clip">
+        <main className="attendee-reveal mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+            <p className="text-sm tracking-wide text-[var(--color-bg-danger)]">Noe gikk galt</p>
+            <h1 className="text-4xl">Kunne ikke hente deltakeren</h1>
+            <p className="max-w-[18rem] text-base opacity-60">
+              Sjekk nettverket og prøv å skanne på nytt.
+            </p>
+          </div>
+          <NextButton toSearch={toSearch} />
+        </main>
+      </div>
     )
   }
 
   if (!query.data) {
     return (
-      <main className="attendee-reveal mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-          <div className="search-idle-mark flex size-16 items-center justify-center rounded-full border border-[var(--color-fg-brand)]/40 text-[var(--color-fg-brand)]">
-            <Search className="size-7" />
+      <div className="overflow-clip">
+        <main className="attendee-reveal mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+            <div className="search-idle-mark flex size-16 items-center justify-center rounded-full border border-[var(--color-fg-brand)]/40 text-[var(--color-fg-brand)]">
+              <Search className="size-7" />
+            </div>
+            <h1 className="text-4xl">Fant ikke deltakeren</h1>
+            <p className="font-mono text-sm break-all opacity-50">{id}</p>
           </div>
-          <h1 className="text-4xl">Fant ikke deltakeren</h1>
-          <p className="font-mono text-sm break-all opacity-50">{id}</p>
-        </div>
-        <div className="flex flex-col gap-3">
-          <Button asChild size="lg">
-            <Link href="/sok">Søk</Link>
-          </Button>
-          {scanCamera ? (
-            <Button asChild variant="surface" size="lg">
-              <Link href="/">Skann neste</Link>
+          <div className="flex flex-col gap-3">
+            <Button asChild size="lg">
+              <Link href="/sok">Søk</Link>
             </Button>
-          ) : null}
-        </div>
-      </main>
+            {scanCamera ? (
+              <Button asChild variant="surface" size="lg">
+                <Link href="/">Skann neste</Link>
+              </Button>
+            ) : null}
+          </div>
+        </main>
+      </div>
     )
   }
 
