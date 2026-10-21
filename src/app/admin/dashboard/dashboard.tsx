@@ -278,9 +278,7 @@ function DashboardBody({
         <NoCheckInsIllustration className="max-w-64" />
         <h2 className="text-2xl">Ingen innsjekk i perioden</h2>
         {showLatest ? (
-          <Button onClick={() => onLatestDay(latest)}>
-            Vis siste innsjekkdag
-          </Button>
+          <Button onClick={() => onLatestDay(latest)}>Vis siste innsjekkdag</Button>
         ) : (
           <Button asChild>
             <Link href="/">Til innsjekk</Link>
