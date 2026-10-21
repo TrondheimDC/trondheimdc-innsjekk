@@ -606,3 +606,28 @@ export function PrinterErrorIllustration({ className }: ArtProps) {
     </Scene>
   )
 }
+
+/** Dashboard empty state: the printer is idle and the label reads 0. */
+export function NoCheckInsIllustration({ className }: ArtProps) {
+  return (
+    <Scene label="Printeren står klar, ingen innsjekk ennå" className={className}>
+      <QlPrinter x={75} y={4} scale={0.95} lcd={<LcdIdle />}>
+        <g transform="translate(43 124)">
+          <path d={tornLabel(84, 72)} fill={paper} />
+          <text
+            x="42"
+            y="48"
+            textAnchor="middle"
+            fill={ink}
+            fontSize="34"
+            fontWeight="700"
+            className="font-display"
+          >
+            0
+          </text>
+          <rect x="16" y="58" width="52" height="3" rx="1.5" fill={brand} />
+        </g>
+      </QlPrinter>
+    </Scene>
+  )
+}
