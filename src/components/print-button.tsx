@@ -1,6 +1,6 @@
 "use client"
 
-import { LoaderCircle, Printer } from "lucide-react"
+import { LoaderCircle, LogIn, Printer } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import {
   AppPhaseButton,
@@ -96,6 +96,8 @@ export function PrintButton({
   const [printed, setPrinted] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /** The badge came out but the check-in failed: offer it again without printing twice. */
+  const [checkInFailed, setCheckInFailed] = useState(false)
   const platform = refinePlatform(platformProp)
   const alreadyPrinted = checkedIn || printed
   // Orange only for someone who arrived checked in, not after this button checks them in.
@@ -144,24 +146,48 @@ export function PrintButton({
     }
   }
 
+  async function checkInAfterPrint(): Promise<boolean> {
+    if (!onCheckIn) return true
+    try {
+      await onCheckIn()
+      setCheckInFailed(false)
+      return true
+    } catch {
+      setCheckInFailed(true)
+      setError("Skiltet er skrevet ut, men innsjekken feilet.")
+      return false
+    }
+  }
+
+  /** Print first, check in last: a driver error never checks anyone in. */
   async function printDirect({ checkIn }: { checkIn: boolean }) {
+    setError(null)
+    setCheckInFailed(false)
+    setBusy(true)
+    try {
+      try {
+        await printBadge({ name, line2 })
+      } catch (caught) {
+        setError(
+          caught instanceof LabelPrintError
+            ? caught.message
+            : "Klarte ikke å skrive ut. Prøv igjen.",
+        )
+        return
+      }
+      setPrinted(true)
+      if (checkIn && !(await checkInAfterPrint())) return
+      onPrinted?.()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function retryCheckIn() {
     setError(null)
     setBusy(true)
     try {
-      await printBadge(
-        { name, line2 },
-        { beforeSend: checkIn && onCheckIn ? onCheckIn : undefined },
-      )
-      setPrinted(true)
-      onPrinted?.()
-    } catch (caught) {
-      setError(
-        caught instanceof LabelPrintError
-          ? caught.message
-          : checkIn
-            ? "Klarte ikke å sjekke inn. Prøv igjen."
-            : "Klarte ikke å skrive ut. Prøv igjen.",
-      )
+      if (await checkInAfterPrint()) onPrinted?.()
     } finally {
       setBusy(false)
     }
@@ -209,6 +235,16 @@ export function PrintButton({
         <PrinterMessage printer={linkAction ? LINK_SHOWN_IN_BAR : printer} error={error} />
       ) : error ? (
         <p className="text-base text-[var(--color-bg-danger)]">{error}</p>
+      ) : null}
+      {checkInFailed && !checkedIn ? (
+        <Button size="lg" disabled={busy} onClick={() => void retryCheckIn()}>
+          {busy ? (
+            <LoaderCircle className="size-5 animate-spin" aria-hidden />
+          ) : (
+            <LogIn className="size-5" aria-hidden />
+          )}
+          Sjekk inn på nytt
+        </Button>
       ) : null}
       {linkBusy ? (
         <ConnectingPrintButton label={appLinkBusyLabel(link)} />

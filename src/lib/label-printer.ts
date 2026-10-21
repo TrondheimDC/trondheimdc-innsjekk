@@ -129,13 +129,9 @@ type HeadImage = { width: number; height: number; data: Uint8Array }
 
 /**
  * Check the printer, draw, then send. Resolves once the printer has the job.
- * `beforeSend` runs after the printer checks out (e.g. check-in), so a printer with
- * an open lid or wrong labels does not check anyone in.
+ * Check in only after this resolves: any driver error then leaves the attendee out.
  */
-async function printLabel(
-  draw: () => Promise<HeadImage>,
-  beforeSend?: () => Promise<void>,
-): Promise<void> {
+async function printLabel(draw: () => Promise<HeadImage>): Promise<void> {
   if (!printer?.connected && reopen) await reopen()
   const current = printer
   if (!current?.connected) throw new LabelPrintError("Printeren er ikke koblet til.")
@@ -161,7 +157,6 @@ async function printLabel(
   }
 
   const image = await draw()
-  await beforeSend?.()
   try {
     // The image is already portrait (head × feed) — never let the driver auto-rotate.
     await current.print(image, media, { rotate: 0 })
@@ -170,11 +165,8 @@ async function printLabel(
   }
 }
 
-export function printBadge(
-  input: BadgeInput,
-  options: { beforeSend?: () => Promise<void> } = {},
-): Promise<void> {
-  return printLabel(async () => badgePrintImage(await renderBadge(input)), options.beforeSend)
+export function printBadge(input: BadgeInput): Promise<void> {
+  return printLabel(async () => badgePrintImage(await renderBadge(input)))
 }
 
 /** Setup / login sticker (`printer.lbx` / `stasjon.lbx` layout). */
