@@ -278,11 +278,11 @@ function DashboardBody({
         <NoCheckInsIllustration className="max-w-64" />
         <h2 className="text-2xl">Ingen innsjekk i perioden</h2>
         {showLatest ? (
-          <Button variant="surface" onClick={() => onLatestDay(latest)}>
+          <Button onClick={() => onLatestDay(latest)}>
             Vis siste innsjekkdag
           </Button>
         ) : (
-          <Button asChild variant="surface">
+          <Button asChild>
             <Link href="/">Til innsjekk</Link>
           </Button>
         )}
@@ -389,7 +389,7 @@ function DashboardBody({
               ))}
             </div>
           </div>
-          <CheckInBars rows={rows} interval={interval} withDay={withDay} />
+          <CheckInBars key={interval} rows={rows} interval={interval} withDay={withDay} />
           <h2 className="pt-2 text-2xl">Innsjekket totalt</h2>
           <CumulativeLine
             times={times}
