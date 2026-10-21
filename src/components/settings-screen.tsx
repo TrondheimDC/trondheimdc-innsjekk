@@ -2,6 +2,7 @@
 
 import { useMutation } from "@tanstack/react-query"
 import {
+  Camera,
   Download,
   LogOut,
   MapPin,
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { APP_DOWNLOAD_PATH } from "@/lib/android-app"
 import { authClient } from "@/lib/auth-client"
 import { nativeQrSupported } from "@/lib/barcode-scan"
+import { setScanCamera } from "@/lib/scan-camera"
 import {
   SCAN_AUTO_PRINT_DEFAULT,
   SCAN_AUTO_PRINT_KEY,
@@ -74,13 +76,17 @@ export type AppInfo = { version: string | null; update: string | null; admin: bo
 
 export function SettingsScreen({
   printerName,
+  scanCamera: initialScanCamera,
   app,
 }: {
   printerName: string
+  /** From the cookie, so the toggle paints right on the first frame. */
+  scanCamera: boolean
   /** Only in the Android app. */
   app: AppInfo | null
 }) {
   const router = useRouter()
+  const [scanCamera, setScanCameraState] = useState(initialScanCamera)
   const scanInline = useLocalFlag(SCAN_INLINE_KEY, SCAN_INLINE_DEFAULT)
   const autoPrint = useLocalFlag(SCAN_AUTO_PRINT_KEY, SCAN_AUTO_PRINT_DEFAULT)
   const zxing = useLocalFlag(SCAN_ZXING_KEY, SCAN_ZXING_DEFAULT)
@@ -103,6 +109,11 @@ export function SettingsScreen({
     },
   })
 
+  function toggleScanCamera() {
+    setScanCamera(!scanCamera)
+    setScanCameraState(!scanCamera)
+  }
+
   function toggleScanInline() {
     setLocalFlag(SCAN_INLINE_KEY, scanInline !== true)
   }
@@ -120,7 +131,7 @@ export function SettingsScreen({
   }
 
   return (
-    <main className="attendee-reveal flex h-dvh flex-col gap-6 p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <main className="attendee-reveal mx-auto flex h-dvh w-full max-w-xl flex-col gap-6 p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <header className="shrink-0 pt-2">
         <TdcLogo />
         <h1 className="mt-2 text-4xl">Innstillinger</h1>
@@ -140,9 +151,17 @@ export function SettingsScreen({
         <p className="text-sm tracking-wide text-[var(--color-fg-brand)]">Innsjekk</p>
 
         <SettingToggle
+          pressed={scanCamera}
+          onToggle={toggleScanCamera}
+          icon={<Camera className="size-5" aria-hidden />}
+          title="Skann med kamera"
+          description="Av: søket er forsiden. For en PC eller Mac uten kamera."
+        />
+
+        <SettingToggle
           pressed={flagsReady ? selfService === true : false}
           onToggle={toggleSelfService}
-          disabled={!flagsReady}
+          disabled={!flagsReady || !scanCamera}
           icon={<UserRoundCheck className="size-5" aria-hidden />}
           title="Selvbetjening"
           description="Deltakerne skanner selv. Viser en bekreftelse etter utskrift og lukker kortet av seg selv."
@@ -151,7 +170,7 @@ export function SettingsScreen({
         <SettingToggle
           pressed={flagsReady ? scanInline === true || selfService === true : false}
           onToggle={toggleScanInline}
-          disabled={!flagsReady || selfService === true}
+          disabled={!flagsReady || selfService === true || !scanCamera}
           icon={<ScanLine className="size-5" aria-hidden />}
           title="Vis resultat på skann"
           description="Vis deltakeren over kameraet, ikke på en egen side."
@@ -221,7 +240,7 @@ export function SettingsScreen({
         <SettingToggle
           pressed={flagsReady ? zxing === true || nativeDetector === false : false}
           onToggle={toggleZxing}
-          disabled={!flagsReady || nativeDetector !== true}
+          disabled={!flagsReady || nativeDetector !== true || !scanCamera}
           icon={<ScanQrCode className="size-5" aria-hidden />}
           title="Skann med ZXing"
           description={
@@ -250,7 +269,7 @@ export function SettingsScreen({
 
       <div className="shrink-0 pt-1">
         <Button asChild variant="surface" size="lg">
-          <Link href="/">Tilbake</Link>
+          <Link href={scanCamera ? "/" : "/sok"}>Tilbake</Link>
         </Button>
       </div>
     </main>

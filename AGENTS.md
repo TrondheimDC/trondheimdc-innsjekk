@@ -68,6 +68,12 @@ Keep the address bar in sync with the wizard so staff can refresh and deeplink.
 - PC/Mac (not iOS/Android) get the USB wizard instead: `step` = `usb` | `driver` | `connect` | `test-print`. The OS comes from the UA: `driver` is Zadig on Windows, a udev rule on Linux, and skipped on Mac. WebUSB in Chrome/Edge; no Smooth Print.
 - Android: after install, press Ferdig — do **not** open Smooth Print. A cold start on connect asks for permissions/terms, then returns to the browser. Force-close only before test print so the overlay dialog appears.
 
+## Door home: scanner or search
+
+- `tdc-scan-camera-on` cookie (Innstillinger → «Skann med kamera») picks the home: on → `/` is the scanner; off → `/` redirects to `/sok` (a PC/Mac at the door). Unset: setup writes it from the device; otherwise Windows/Linux default off.
+- From the search, open attendees with `attendeePath(id, { fromSearch: true })` (`?fra=sok`), so «Søk neste» / Esc lead back to `/sok`. The Smooth Print callback keeps `fra`.
+- «Manuell innsjekk» (search) adds someone not on the Checkin list: a `man_…` attendee with `source = manual` and a `create` check event (who/when). Imports never soft-delete these. Admin → Manuelle lists them.
+
 ## Browser defaults
 
 Do not switch off native browser behavior: swipe back/forward, pull-to-refresh, pinch zoom, text selection, scroll bounce. No `overscroll-behavior`, `touch-action: none`, `user-scalable=no`, or touch `preventDefault` on page-level elements. Fix the specific layout bug instead.

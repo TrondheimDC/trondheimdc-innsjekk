@@ -1,10 +1,11 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { Check, Search, Users } from "lucide-react"
+import { Check, Search, Settings, UserPlus, Users } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useDeferredValue, useEffect, useState } from "react"
+import { ManualCheckInDialog } from "@/components/manual-check-in"
 import { TdcLogo } from "@/components/tdc-logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,6 +17,7 @@ import {
   CommandList,
   CommandLoading,
 } from "@/components/ui/command"
+import { attendeePath } from "@/lib/attendee-path"
 import type { AttendeeStats } from "@/lib/attendees"
 import { attendeeStatsSchema, attendeesSearchResponseSchema } from "@/lib/db/schema"
 import { labelLine } from "@/lib/label-line"
@@ -25,9 +27,17 @@ import { apiPath } from "@/lib/utils"
 const INCLUDE_CHECKED_IN_KEY = "tdc-sok-include-checked-in"
 const SHOW_ALL_KEY = "tdc-sok-show-all"
 
-export function SearchScreen({ initialStats }: { initialStats: AttendeeStats }) {
+export function SearchScreen({
+  initialStats,
+  scanCamera,
+}: {
+  initialStats: AttendeeStats
+  /** Off: this is the door's home (a PC/Mac), so there is no scanner to go back to. */
+  scanCamera: boolean
+}) {
   const router = useRouter()
   const [q, setQ] = useState("")
+  const [manualOpen, setManualOpen] = useState(false)
   const storedIncludeCheckedIn = useLocalFlag(INCLUDE_CHECKED_IN_KEY)
   const storedShowAll = useLocalFlag(SHOW_ALL_KEY)
   const [includeCheckedIn, setIncludeCheckedIn] = useState(false)
@@ -88,12 +98,21 @@ export function SearchScreen({ initialStats }: { initialStats: AttendeeStats }) 
   }
 
   return (
-    <main className="attendee-reveal flex h-dvh flex-col gap-5 overflow-hidden p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <main className="attendee-reveal mx-auto flex h-dvh w-full max-w-2xl flex-col gap-5 overflow-hidden p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <header className="flex shrink-0 items-center justify-between pt-2">
         <TdcLogo />
-        <p className="text-base tabular-nums opacity-70">
-          {`${statsValue.checkedIn} av ${statsValue.total}`}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-base tabular-nums opacity-70">
+            {`${statsValue.checkedIn} av ${statsValue.total}`}
+          </p>
+          {scanCamera ? null : (
+            <Button asChild variant="surface" size="icon" className="rounded-full">
+              <Link href="/innstillinger" aria-label="Innstillinger">
+                <Settings className="size-5" aria-hidden />
+              </Link>
+            </Button>
+          )}
+        </div>
       </header>
 
       <Command
@@ -198,6 +217,15 @@ export function SearchScreen({ initialStats }: { initialStats: AttendeeStats }) 
                       Innsjekkede er skjult. Trykk «Innsjekkede» for å ta dem med.
                     </p>
                   ) : null}
+                  <Button
+                    type="button"
+                    variant="surface"
+                    className="mt-3 h-11 gap-2 px-4 text-base"
+                    onClick={() => setManualOpen(true)}
+                  >
+                    <UserPlus className="size-5" aria-hidden />
+                    Manuell innsjekk
+                  </Button>
                 </>
               ) : (
                 <>
@@ -224,7 +252,7 @@ export function SearchScreen({ initialStats }: { initialStats: AttendeeStats }) 
                       (keyword) => keyword != null,
                     )}
                     onSelect={() => {
-                      router.push(`/deltaker/${encodeURIComponent(attendee.id)}`)
+                      router.push(attendeePath(attendee.id, { fromSearch: true }))
                     }}
                     className="flex-row items-center justify-between gap-3"
                     style={{ animationDelay: `${Math.min(index, 8) * 55}ms` }}
@@ -256,11 +284,29 @@ export function SearchScreen({ initialStats }: { initialStats: AttendeeStats }) 
         </CommandList>
       </Command>
 
-      <div className="shrink-0 pt-1">
-        <Button asChild variant="surface" size="lg">
-          <Link href="/">Tilbake</Link>
+      <div className="flex shrink-0 gap-3 pt-1">
+        {scanCamera ? (
+          <Button asChild variant="surface" size="lg" className="w-auto flex-none px-5 text-lg">
+            <Link href="/">Tilbake</Link>
+          </Button>
+        ) : null}
+        <Button
+          type="button"
+          variant="surface"
+          size="lg"
+          className="min-w-0 flex-1 px-4 text-lg"
+          onClick={() => setManualOpen(true)}
+        >
+          <UserPlus className="size-5" aria-hidden />
+          Manuell innsjekk
         </Button>
       </div>
+
+      <ManualCheckInDialog
+        open={manualOpen}
+        onOpenChange={setManualOpen}
+        initialName={searching ? deferredQ : undefined}
+      />
     </main>
   )
 }

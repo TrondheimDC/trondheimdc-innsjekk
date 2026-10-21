@@ -6,6 +6,7 @@ import { pendingAppUpdate } from "@/lib/app-release"
 import { canAccessAdmin } from "@/lib/auth"
 import { requireDoorSession } from "@/lib/auth-session"
 import { isAppUserAgent } from "@/lib/platform"
+import { scanCameraEnabled } from "@/lib/scan-camera-server"
 
 export const metadata: Metadata = { title: "Innstillinger" }
 
@@ -14,6 +15,7 @@ export default async function InnstillingerPage() {
   return (
     <SettingsScreen
       printerName={session.user.name}
+      scanCamera={await scanCameraEnabled()}
       app={await appInfo(canAccessAdmin(session.user.role))}
     />
   )

@@ -26,7 +26,11 @@ import {
   supportsAndroidIntent,
 } from "@/lib/platform"
 import { currentPrintMethod, usePrintMethod } from "@/lib/print-method"
-import { consumePrintOutcome, primeForIosTabReuse } from "@/lib/print-outcome"
+import {
+  consumePrintOutcome,
+  primeForIosTabReuse,
+  printCallbackQueryPrefix,
+} from "@/lib/print-outcome"
 import {
   buildAndroidPrintIntent,
   buildPrintUrl,
@@ -61,9 +65,8 @@ import { apiPath } from "@/lib/utils"
 const LINK_SHOWN_IN_BAR: LabelPrinterState = { kind: "idle" }
 
 function buildPrintCallback(): PrintCallback {
-  const target = new URL(window.location.pathname, window.location.origin)
-  target.searchParams.set("result", "")
-  const callbackUrl = target.toString()
+  // Same shape as primeForIosTabReuse, so Safari reuses the tab.
+  const callbackUrl = `${window.location.origin}${window.location.pathname}?${printCallbackQueryPrefix()}result=`
   return { successCallback: callbackUrl, failureCallback: callbackUrl }
 }
 

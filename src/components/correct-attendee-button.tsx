@@ -17,7 +17,7 @@ import {
 import { labelLine } from "@/lib/label-line"
 import { cn } from "@/lib/utils"
 
-const fieldClass =
+export const attendeeFieldClass =
   "h-12 w-full rounded-xl border border-white/15 bg-[var(--color-bg-base)] px-4 text-base text-[var(--color-fg-base)] outline-none focus-visible:border-[var(--color-fg-brand)] focus-visible:ring-2 focus-visible:ring-[var(--color-fg-brand)]/40"
 
 /**
@@ -140,7 +140,7 @@ export function CorrectAttendeeDialog({
             </label>
             <input
               id={nameId}
-              className={fieldClass}
+              className={attendeeFieldClass}
               autoComplete="off"
               autoFocus={missingName}
               {...register("name")}
@@ -155,7 +155,7 @@ export function CorrectAttendeeDialog({
             </label>
             <input
               id={companyId}
-              className={fieldClass}
+              className={attendeeFieldClass}
               autoComplete="off"
               {...register("company")}
             />
@@ -169,7 +169,12 @@ export function CorrectAttendeeDialog({
             <label htmlFor={roleId} className="text-sm font-medium opacity-80">
               Stilling
             </label>
-            <input id={roleId} className={fieldClass} autoComplete="off" {...register("role")} />
+            <input
+              id={roleId}
+              className={attendeeFieldClass}
+              autoComplete="off"
+              {...register("role")}
+            />
           </div>
 
           {error ? <p className="text-base text-[var(--color-bg-danger)]">{error}</p> : null}

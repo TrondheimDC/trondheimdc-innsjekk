@@ -3,6 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { ScanLine, Search } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { CheckInButton } from "@/components/check-in-button"
 import { CorrectAttendeeButton } from "@/components/correct-attendee-button"
@@ -12,6 +13,7 @@ import { usePrinterStatusBar } from "@/components/printer-connect"
 import { TdcLogo } from "@/components/tdc-logo"
 import { Button } from "@/components/ui/button"
 import { useSetCheckedIn } from "@/hooks/use-set-checked-in"
+import { PRINT_NOW_PARAM } from "@/lib/attendee-path"
 import { attendeeResponseSchema } from "@/lib/db/schema"
 import { labelLine } from "@/lib/label-line"
 import { type PhonePlatform, platformFromNavigator } from "@/lib/platform"
@@ -19,15 +21,68 @@ import { SCAN_AUTO_PRINT_DEFAULT, SCAN_AUTO_PRINT_KEY } from "@/lib/scan-setting
 import { useLocalFlag } from "@/lib/use-local-flag"
 import { apiPath, cn } from "@/lib/utils"
 
-export function AttendeeScreen({ id }: { id: string }) {
+/** Where "next" goes: the search when staff came from it or the device has no scanner. */
+function NextButton({ toSearch }: { toSearch: boolean }) {
+  return (
+    <Button asChild variant="surface" size="lg">
+      {toSearch ? (
+        <Link href="/sok">
+          <Search className="size-5" aria-hidden />
+          Søk neste
+        </Link>
+      ) : (
+        <Link href="/">
+          <ScanLine className="size-5" aria-hidden />
+          Skann neste
+        </Link>
+      )}
+    </Button>
+  )
+}
+
+export function AttendeeScreen({
+  id,
+  scanCamera,
+  fromSearch,
+  printNow,
+}: {
+  id: string
+  /** False on a PC/Mac with the camera off: the search is home. */
+  scanCamera: boolean
+  fromSearch: boolean
+  /** Just added through Manuell innsjekk: print and check in at once. */
+  printNow: boolean
+}) {
   const queryClient = useQueryClient()
+  const router = useRouter()
   usePrinterStatusBar()
+  const toSearch = fromSearch || !scanCamera
+  const backHref = toSearch ? "/sok" : "/"
   const [platform, setPlatform] = useState<PhonePlatform>("other")
   const autoPrintFlag = useLocalFlag(SCAN_AUTO_PRINT_KEY, SCAN_AUTO_PRINT_DEFAULT)
 
   useEffect(() => {
     setPlatform(platformFromNavigator())
   }, [])
+
+  // Once only: a refresh or the Smooth Print callback must not print again.
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has(PRINT_NOW_PARAM)) return
+    url.searchParams.delete(PRINT_NOW_PARAM)
+    window.history.replaceState(window.history.state, "", url)
+  }, [])
+
+  // Keyboard at a PC: Esc goes back to the search (or scanner), unless a dialog has it.
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape" || event.defaultPrevented) return
+      if (document.querySelector('[role="dialog"]')) return
+      router.push(backHref)
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [router, backHref])
   const [overrideError, setOverrideError] = useState<string | null>(null)
   const query = useQuery({
     queryKey: ["attendee", id],
@@ -70,7 +125,7 @@ export function AttendeeScreen({ id }: { id: string }) {
 
   if (query.isError) {
     return (
-      <main className="attendee-reveal flex min-h-dvh flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <main className="attendee-reveal mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <p className="text-sm tracking-wide text-[var(--color-bg-danger)]">Noe gikk galt</p>
           <h1 className="text-4xl">Kunne ikke hente deltakeren</h1>
@@ -78,16 +133,14 @@ export function AttendeeScreen({ id }: { id: string }) {
             Sjekk nettverket og prøv å skanne på nytt.
           </p>
         </div>
-        <Button asChild size="lg">
-          <Link href="/">Skann neste</Link>
-        </Button>
+        <NextButton toSearch={toSearch} />
       </main>
     )
   }
 
   if (!query.data) {
     return (
-      <main className="attendee-reveal flex min-h-dvh flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+      <main className="attendee-reveal mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
           <div className="search-idle-mark flex size-16 items-center justify-center rounded-full border border-[var(--color-fg-brand)]/40 text-[var(--color-fg-brand)]">
             <Search className="size-7" />
@@ -99,9 +152,11 @@ export function AttendeeScreen({ id }: { id: string }) {
           <Button asChild size="lg">
             <Link href="/sok">Søk</Link>
           </Button>
-          <Button asChild variant="surface" size="lg">
-            <Link href="/">Skann neste</Link>
-          </Button>
+          {scanCamera ? (
+            <Button asChild variant="surface" size="lg">
+              <Link href="/">Skann neste</Link>
+            </Button>
+          ) : null}
         </div>
       </main>
     )
@@ -110,11 +165,10 @@ export function AttendeeScreen({ id }: { id: string }) {
   const attendee = query.data
   const line2 = labelLine(attendee.company, attendee.role)
   const checkedIn = attendee.checkedInAt != null
-  const autoPrintReady = autoPrintFlag !== null
-  const shouldAutoPrint = autoPrintReady && autoPrintFlag === true && !checkedIn
+  const shouldAutoPrint = !checkedIn && (printNow || autoPrintFlag === true)
 
   return (
-    <main className="relative flex min-h-dvh flex-col justify-between overflow-hidden p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <main className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col justify-between overflow-hidden p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+var(--printer-status-bar,0px)))] pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="attendee-badge-glow" aria-hidden />
 
       <div className="relative pt-4">
@@ -166,12 +220,7 @@ export function AttendeeScreen({ id }: { id: string }) {
             }
           }}
         />
-        <Button asChild variant="surface" size="lg">
-          <Link href="/">
-            <ScanLine className="size-5" aria-hidden />
-            Skann neste
-          </Link>
-        </Button>
+        <NextButton toSearch={toSearch} />
       </div>
     </main>
   )

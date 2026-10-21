@@ -1,3 +1,4 @@
+import { FROM_PARAM } from "@/lib/attendee-path"
 import type { PhonePlatform } from "@/lib/platform"
 
 const RESULT_KEYS = new Set(["result", "errorcode"])
@@ -28,6 +29,15 @@ function stripPrintOutcomeParams() {
 }
 
 /**
+ * The query a print callback comes back to, before Smooth Print's result: only `fra`, so the
+ * attendee screen still leads back to the search. Ends in "&" when not empty.
+ */
+export function printCallbackQueryPrefix(): string {
+  const from = new URLSearchParams(window.location.search).get(FROM_PARAM)
+  return from ? `${new URLSearchParams({ [FROM_PARAM]: from })}&` : ""
+}
+
+/**
  * iOS only. Safari reuses the open tab for a callback URL only when that URL
  * matches the address bar. Rewrite to the predicted success shape before firing.
  */
@@ -36,7 +46,7 @@ export function primeForIosTabReuse() {
   window.history.replaceState(
     window.history.state,
     "",
-    `${window.location.pathname}?${IOS_PREDICTED_SUCCESS_QUERY}`,
+    `${window.location.pathname}?${printCallbackQueryPrefix()}${IOS_PREDICTED_SUCCESS_QUERY}`,
   )
 }
 

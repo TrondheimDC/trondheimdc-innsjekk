@@ -19,6 +19,8 @@ const objectIdPrefixes = {
   prt: "prt",
   /** Door login token (the sticker under the printer). */
   lgn: "lgn",
+  /** Attendee added by hand at the door (Manuell innsjekk); not a Checkin ticket. */
+  man: "man",
 } as const
 
 export type ObjectIdPrefix = keyof typeof objectIdPrefixes

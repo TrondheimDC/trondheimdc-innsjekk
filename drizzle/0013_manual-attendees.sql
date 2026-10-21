@@ -1,0 +1,1 @@
+ALTER TABLE `attendees` ADD `source` text DEFAULT 'import' NOT NULL;

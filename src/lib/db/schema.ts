@@ -26,6 +26,10 @@ export const attendees = sqliteTable("attendees", {
   roleOverride: nonEmptyText("role_override"),
   /** ISO timestamp of the latest correction. Null when the badge prints as imported. */
   correctedAt: text("corrected_at"),
+  /** `manual`: added at the door (`man_…`), so a later import leaves the row alone. */
+  source: text("source", { enum: ["import", "manual"] })
+    .notNull()
+    .default("import"),
 })
 
 export const checkEvents = sqliteTable(
@@ -35,9 +39,9 @@ export const checkEvents = sqliteTable(
     attendeeId: text("attendee_id")
       .notNull()
       .references(() => attendees.id),
-    action: text("action", { enum: ["in", "out", "correct"] }).notNull(),
+    action: text("action", { enum: ["create", "in", "out", "correct"] }).notNull(),
     createdAt: text("created_at").notNull(),
-    /** JSON `{ from, to }` of name/company/role for `correct` events. */
+    /** JSON `{ from, to }` of name/company/role for `correct`; `{ to }` for `create`. */
     detail: text("detail"),
     /** better-auth user id (printer door account or admin) that performed the action. */
     actorUserId: text("actor_user_id"),
@@ -95,6 +99,16 @@ export const correctAttendeeBodySchema = z.object({
 })
 export type CorrectAttendeeBody = z.output<typeof correctAttendeeBodySchema>
 export type CorrectAttendeeInput = z.input<typeof correctAttendeeBodySchema>
+
+/** Manuell innsjekk form + POST body: someone not on the Checkin list, typed in at the door. */
+export const manualAttendeeBodySchema = correctAttendeeBodySchema
+
+/** Admin audit row: a manual attendee and the login that added it. */
+export const manualAttendeeSchema = attendeeSchema.extend({
+  createdAt: z.string(),
+  createdBy: z.string().nullable(),
+})
+export type ManualAttendee = z.infer<typeof manualAttendeeSchema>
 
 export const printers = sqliteTable("printers", {
   /** App: `prt_BODY` (the setup sticker links to it); SQLite: body only. Older rows are UUIDs. */

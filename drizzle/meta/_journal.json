@@ -92,6 +92,13 @@
       "when": 1791235460791,
       "tag": "0012_attendee-nullable-text",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792567677662,
+      "tag": "0013_manual-attendees",
+      "breakpoints": true
     }
   ]
 }

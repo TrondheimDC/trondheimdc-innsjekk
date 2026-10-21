@@ -1,11 +1,13 @@
-import { and, count, eq, inArray, isNull, like, or, sql } from "drizzle-orm"
+import { and, count, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm"
 import { db } from "./db"
+import { createObjectId } from "./db/object-id"
 import {
   type Attendee,
   attendees,
   type CorrectAttendeeBody,
   checkEvents,
   type ImportedAttendee,
+  type ManualAttendee,
 } from "./db/schema"
 
 export type { Attendee }
@@ -40,6 +42,13 @@ export interface AttendeeRepository {
     correction: CorrectAttendeeBody,
     actor?: { userId: string; name: string } | null,
   ): Promise<Attendee | null>
+  /** Manuell innsjekk: someone not on the Checkin list. Logged as a `create` event. */
+  createManual(
+    values: CorrectAttendeeBody,
+    actor?: { userId: string; name: string } | null,
+  ): Promise<Attendee>
+  /** Every manual attendee, newest first, with who added it. */
+  listManual(): Promise<ManualAttendee[]>
   replaceAll(next: ImportedAttendee[], deactivateIds?: string[]): Promise<ImportSyncResult>
 }
 
@@ -187,6 +196,53 @@ export const attendeeRepository: AttendeeRepository = {
     })
   },
 
+  async createManual(values, actor) {
+    const now = new Date().toISOString()
+    const id = createObjectId("man")
+    return db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(attendees)
+        .values({
+          id,
+          name: values.name,
+          company: values.company,
+          role: values.role,
+          source: "manual",
+        })
+        .returning()
+      await tx.insert(checkEvents).values({
+        attendeeId: id,
+        action: "create",
+        createdAt: now,
+        detail: JSON.stringify({ to: values }),
+        actorUserId: actor?.userId ?? null,
+        actorName: actor?.name ?? null,
+      })
+      return effective(row!)
+    })
+  },
+
+  async listManual() {
+    const rows = await db
+      .select({
+        attendee: attendees,
+        createdAt: checkEvents.createdAt,
+        createdBy: checkEvents.actorName,
+      })
+      .from(attendees)
+      .innerJoin(
+        checkEvents,
+        and(eq(checkEvents.attendeeId, attendees.id), eq(checkEvents.action, "create")),
+      )
+      .where(and(eq(attendees.source, "manual"), active))
+      .orderBy(desc(checkEvents.createdAt))
+    return rows.map((row) => ({
+      ...effective(row.attendee),
+      createdAt: row.createdAt,
+      createdBy: row.createdBy,
+    }))
+  },
+
   async replaceAll(next, deactivateIds = []) {
     // id is the ticket barcode. Upsert by id so check-ins and check_events survive re-import.
     // Missing active rows + cancelled/waitlist/refunded barcodes are soft-deleted.
@@ -195,7 +251,7 @@ export const attendeeRepository: AttendeeRepository = {
       const nextIds = new Set(next.map((attendee) => attendee.id))
       const deactivate = new Set(deactivateIds)
       const existing = await tx
-        .select({ id: attendees.id, deletedAt: attendees.deletedAt })
+        .select({ id: attendees.id, deletedAt: attendees.deletedAt, source: attendees.source })
         .from(attendees)
       const byId = new Map(existing.map((row) => [row.id, row]))
 
@@ -209,8 +265,14 @@ export const attendeeRepository: AttendeeRepository = {
         else updated += 1
       }
 
+      // Manual attendees were never on the Checkin list, so missing from it is not a removal.
       const removedIds = existing
-        .filter((row) => row.deletedAt == null && (!nextIds.has(row.id) || deactivate.has(row.id)))
+        .filter(
+          (row) =>
+            row.source === "import" &&
+            row.deletedAt == null &&
+            (!nextIds.has(row.id) || deactivate.has(row.id)),
+        )
         .map((row) => row.id)
 
       if (removedIds.length > 0) {
