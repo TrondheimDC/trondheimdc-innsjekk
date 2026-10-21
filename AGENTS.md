@@ -71,7 +71,7 @@ Keep the address bar in sync with the wizard so staff can refresh and deeplink.
 ## Door home: scanner or search
 
 - `tdc-scan-camera-on` cookie (Innstillinger → «Skann med kamera») picks the home: on → `/` is the scanner; off → `/` redirects to `/sok` (a PC/Mac at the door). The PC/Mac setup asks first (`step=mode`: Søk / Skann); unset otherwise defaults from the device (Windows/Linux off).
-- Picking a search result shows the same card as a scan (`ScanResultSheet`) over the search: «Ny innsjekk» prints and checks in at once on a search home (else per «Skriv ut med en gang»), «Allerede innsjekket» asks before printing again. Esc closes; typing starts the next search.
+- Picking a search result shows the same card as a scan (`ScanResultSheet`) over the search: «Ny innsjekk» prints and checks in at once only when «Skriv ut med en gang» is on (one setting for scanner and search), «Allerede innsjekket» asks before printing again. Esc closes; typing starts the next search.
 - `/deltaker/[id]` only when «Egen deltakerside» is on (the inverted `tdc-scan-inline` flag). Then open it with `attendeePath(id, { fromSearch: true })` (`?fra=sok`), so «Søk neste» / Esc lead back to `/sok`. The Smooth Print callback keeps `fra`.
 - «Manuell innsjekk» (search) adds someone not on the Checkin list: a `man_…` attendee with `source = manual` and a `create` check event (who/when, optional `reason` in the detail). Imports never soft-delete these. Admin → Manuelle lists them.
 

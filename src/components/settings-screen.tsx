@@ -170,16 +170,12 @@ export function SettingsScreen({
           />
 
           <SettingToggle
-            pressed={flagsReady ? autoPrint === true || selfService === true || !scanCamera : false}
+            pressed={flagsReady ? autoPrint === true || selfService === true : false}
             onToggle={toggleAutoPrint}
-            disabled={!flagsReady || selfService === true || !scanCamera}
+            disabled={!flagsReady || selfService === true}
             icon={<Zap className="size-5" aria-hidden />}
             title="Skriv ut med en gang"
-            description={
-              scanCamera
-                ? "Skriv ut automatisk for nye innsjekker."
-                : "Alltid på når søket er forsiden: Enter skriver ut og sjekker inn."
-            }
+            description="Skriv ut automatisk for nye innsjekker, også fra søket."
           />
 
           <SettingToggle

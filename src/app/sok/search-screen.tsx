@@ -50,8 +50,7 @@ export function SearchScreen({
   const inputRef = useRef<HTMLInputElement>(null)
   const inline = useLocalFlag(SCAN_INLINE_KEY, SCAN_INLINE_DEFAULT)
   const autoPrintSetting = useLocalFlag(SCAN_AUTO_PRINT_KEY, SCAN_AUTO_PRINT_DEFAULT)
-  // A search home (PC/Mac at the door): picking a name is the decision, so Enter prints.
-  const autoPrint = !scanCamera || autoPrintSetting === true
+  const autoPrint = autoPrintSetting === true
   const [card, setCard] = useState<{ attendee: Attendee; autoPrint: boolean } | null>(null)
   const opening = useRef(false)
   const storedIncludeCheckedIn = useLocalFlag(INCLUDE_CHECKED_IN_KEY)
