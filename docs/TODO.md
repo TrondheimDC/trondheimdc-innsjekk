@@ -191,12 +191,13 @@ See and replay the day afterwards: how fast everyone got checked in, and how muc
 - [x] Chart of checked-in attendees over time (cumulative and per-interval: per minute / 5 / 15 / 60 minutes), built from `check_events` timestamps
 - [ ] Replay the day: scrub or play a timeline and watch the count build up
 - [x] Key numbers: first and last check-in, busiest minute and quarter, time to reach 50 / 90 %, share of attendees checked in
-- [x] Zoom the chart: opens on doors open → keynote (08:00–09:00) when anything happened then, «Hele dagen», or drag across the chart (mouse) for «Utvalg»; «Snitt i minuttet» follows the zoom and only counts minutes that have passed
-- [x] Før og etter keynote: in before 09:00, average per minute 08:00–09:00, Etternølere (from 09:00), before the doors opened; 50 / 90 % counted from 08:00
+- [x] Zoom the chart: opens on doors open → program start (08:00–09:00) when anything happened then, «Hele dagen», or drag across the chart (mouse) for «Utvalg»; «Snitt i minuttet» follows the zoom and only counts minutes that have passed
+- [x] Før og etter programstart: in before 09:00, average per minute 08:00–09:00, Etternølere (from 09:00), before the doors opened; 50 / 90 % counted from 08:00
 - [x] Count each attendee once: the `in` that still stands, leaving out check-ins that were later undone (`out`)
 - [x] Door edits from `correct` events (not `attendees.correctedAt`, which only shows who is corrected right now): number of edits, attendees edited, which fields changed (`detail.from` / `detail.to`), and missing names filled in (`from.name` is null) counted separately; plus Manuelle and undone check-ins
 - [x] Breakdown per printer (the door login's printer; admins by name)
 - [x] Reprints: each badge sent is a `print` event (`reprint` when it had been printed already); Dashboard → «Skrevet ut på nytt» and per printer. Smooth Print counts as sent, not confirmed printed
+- [ ] Doors open (08:00) and program start (09:00) per event: today `DOORS_OPEN` / `PROGRAM_START` in `src/lib/dashboard-stats.ts` are fixed for TDC, since there is no event in the app yet (see Live Checkin integration). Store them on the event and read them in the dashboard once events exist
 - [ ] Per-day chart for ranges over several days (today the finest is per hour, mostly empty overnight)
 
 ### Own P-touch / template editor

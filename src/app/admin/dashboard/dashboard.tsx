@@ -26,11 +26,11 @@ import {
   formatDuration,
   INTERVALS,
   type Interval,
-  KEYNOTE,
   keyNumbers,
   morning,
   morningSpan,
   numberFormat,
+  PROGRAM_START,
   percentFormat,
   type Span,
   spanPerMinute,
@@ -52,13 +52,13 @@ const INTERVAL_LABELS: Record<Interval, string> = {
   60: "1 time",
 }
 
-/** The chart's time axis: doors open to keynote, the whole range, or a stretch dragged out. */
+/** The chart's time axis: doors open to program start, the whole range, or a stretch dragged out. */
 type Zoom = "morning" | "all" | Span
 
 const clockFormat = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
 const OPEN_LABEL = clockFormat(DOORS_OPEN)
-const KEYNOTE_LABEL = clockFormat(KEYNOTE)
+const PROGRAM_START_LABEL = clockFormat(PROGRAM_START)
 
 export function DashboardView({
   initialRange,
@@ -228,7 +228,7 @@ function DashboardBody({
 
   const now = Date.parse(dashboard.readAt)
   const doorsOpen = withDay ? null : morningSpan(dashboard.range.from)
-  // The hour before the keynote is what the door is for: start there when anything happened in it.
+  // The hour before the program starts is what the door is for: start there when anything happened in it.
   const zoom =
     pickedZoom ??
     (doorsOpen && times.some((time) => time >= doorsOpen.start && time < doorsOpen.end)
@@ -334,7 +334,7 @@ function DashboardBody({
                 }}
                 options={[
                   ...(doorsOpen
-                    ? [{ value: "morning" as const, label: `${OPEN_LABEL}–${KEYNOTE_LABEL}` }]
+                    ? [{ value: "morning" as const, label: `${OPEN_LABEL}–${PROGRAM_START_LABEL}` }]
                     : []),
                   { value: "all" as const, label: withDay ? "Hele perioden" : "Hele dagen" },
                   ...(typeof zoom === "string"
@@ -378,10 +378,10 @@ function DashboardBody({
       </section>
 
       <section className="flex flex-col gap-4">
-        <SectionTitle>Før og etter keynote</SectionTitle>
+        <SectionTitle>Før og etter programstart</SectionTitle>
         <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 lg:grid-cols-6">
           <Stat
-            label={`Inne før ${KEYNOTE_LABEL}`}
+            label={`Inne før ${PROGRAM_START_LABEL}`}
             value={numberFormat.format(rush.early + rush.rush)}
             detail={
               times.length > 0
@@ -390,7 +390,7 @@ function DashboardBody({
             }
           />
           <Stat
-            label={`Snitt ${OPEN_LABEL}–${KEYNOTE_LABEL}`}
+            label={`Snitt ${OPEN_LABEL}–${PROGRAM_START_LABEL}`}
             value={rush.perMinute != null ? decimalFormat.format(rush.perMinute) : "–"}
             detail="i minuttet"
           />
@@ -399,8 +399,8 @@ function DashboardBody({
             value={numberFormat.format(rush.late)}
             detail={
               times.length > 0
-                ? `${percentFormat.format(rush.late / times.length)} · etter ${KEYNOTE_LABEL}`
-                : `etter ${KEYNOTE_LABEL}`
+                ? `${percentFormat.format(rush.late / times.length)} · etter ${PROGRAM_START_LABEL}`
+                : `etter ${PROGRAM_START_LABEL}`
             }
           />
           <Stat

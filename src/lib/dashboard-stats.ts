@@ -9,9 +9,12 @@ export type Interval = (typeof INTERVALS)[number]
 /** More bars than this and they turn into a smear. */
 const MAX_BUCKETS = 720
 
-/** Doors open at 08:00 and the keynote starts at 09:00 (Oslo): the hour the door is for. */
+/**
+ * Doors open at 08:00 and the program starts at 09:00 (Oslo): the hour the door is for.
+ * Fixed for TDC until there is an event to store them on (docs/TODO.md).
+ */
 export const DOORS_OPEN = 8 * 60
-export const KEYNOTE = 9 * 60
+export const PROGRAM_START = 9 * 60
 
 /** `[start, end)` instants. */
 export interface Span {
@@ -153,7 +156,7 @@ export function keyNumbers(times: number[]): KeyNumbers {
 export function morningSpan(date: string): Span {
   return {
     start: osloInstant(date, DOORS_OPEN).getTime(),
-    end: osloInstant(date, KEYNOTE).getTime(),
+    end: osloInstant(date, PROGRAM_START).getTime(),
   }
 }
 
@@ -169,13 +172,13 @@ export interface Morning {
   early: number
   /** 08:00–09:00. */
   rush: number
-  /** From the keynote at 09:00: the latecomers. */
+  /** From the program start at 09:00: the latecomers. */
   late: number
   /** Per minute between 08:00 and 09:00, over every day with check-ins. */
   perMinute: number | null
 }
 
-/** Before, during and after the hour from doors open to keynote, on each check-in's own day. */
+/** Before, during and after the hour from doors open to program start, on each check-in's own day. */
 export function morning(times: number[], now: number): Morning {
   const result: Morning = { early: 0, rush: 0, late: 0, perMinute: null }
   const spans = new Map<string, Span>()
