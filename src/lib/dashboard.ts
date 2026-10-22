@@ -151,6 +151,7 @@ export async function loadDashboard(range: DashboardRange): Promise<Dashboard> {
 
   return {
     range,
+    readAt: new Date().toISOString(),
     activeDays: [...new Set(standing.map((event) => osloDate(event.createdAt)))].sort(),
     totalAttendees: total?.count ?? 0,
     checkIns,

@@ -17,6 +17,8 @@ export type DashboardRange = z.infer<typeof dashboardRangeSchema>
 
 export const dashboardSchema = z.object({
   range: dashboardRangeSchema,
+  /** When the numbers were read, so a live average only counts the minutes that have passed. */
+  readAt: z.string(),
   /** Oslo dates with at least one counted check-in, oldest first (all time, not just the range). */
   activeDays: z.array(isoDate),
   /** Active attendees right now. */
@@ -98,13 +100,18 @@ export function osloOffset(ms: number): number {
   return asUtc - Math.floor(ms / 1000) * 1000
 }
 
+/** The instant an Oslo wall-clock time (minutes after midnight) happens on a day. */
+export function osloInstant(date: string, minutes: number): Date {
+  const [year, month, day] = date.split("-").map(Number)
+  const guess = Date.UTC(year!, month! - 1, day!, 0, minutes)
+  const first = guess - osloOffset(guess)
+  // Re-check once: the guess and the real time can sit on either side of a DST switch.
+  return new Date(guess - osloOffset(first))
+}
+
 /** The instant an Oslo day starts. */
 export function osloDayStart(date: string): Date {
-  const [year, month, day] = date.split("-").map(Number)
-  const guess = Date.UTC(year!, month! - 1, day!)
-  const first = guess - osloOffset(guess)
-  // Re-check once: the guess and the real midnight can sit on either side of a DST switch.
-  return new Date(guess - osloOffset(first))
+  return osloInstant(date, 0)
 }
 
 export function addDays(date: string, days: number): string {

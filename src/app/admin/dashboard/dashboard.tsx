@@ -16,7 +16,9 @@ import {
   type Bucket,
   buckets,
   checkInTimes,
+  DOORS_OPEN,
   type DoorRow,
+  decimalFormat,
   defaultInterval,
   doorRows,
   fitsInterval,
@@ -24,9 +26,14 @@ import {
   formatDuration,
   INTERVALS,
   type Interval,
+  KEYNOTE,
   keyNumbers,
+  morning,
+  morningSpan,
   numberFormat,
   percentFormat,
+  type Span,
+  spanPerMinute,
 } from "@/lib/dashboard-stats"
 import { apiPath, cn } from "@/lib/utils"
 import { type ChartMode, CheckInChart, type TooltipRow } from "./charts"
@@ -45,6 +52,14 @@ const INTERVAL_LABELS: Record<Interval, string> = {
   60: "1 time",
 }
 
+/** The chart's time axis: doors open to keynote, the whole range, or a stretch dragged out. */
+type Zoom = "morning" | "all" | Span
+
+const clockFormat = (minutes: number) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`
+const OPEN_LABEL = clockFormat(DOORS_OPEN)
+const KEYNOTE_LABEL = clockFormat(KEYNOTE)
+
 export function DashboardView({
   initialRange,
   today,
@@ -54,6 +69,7 @@ export function DashboardView({
 }) {
   const [range, setRange] = useState(initialRange)
   const [interval, setInterval] = useState<Interval | null>(null)
+  const [zoom, setZoom] = useState<Zoom | null>(null)
 
   const query = useQuery({
     queryKey: dashboardQueryKey(range),
@@ -66,6 +82,7 @@ export function DashboardView({
   function pick(next: DashboardRange) {
     setRange(next)
     setInterval(null)
+    setZoom(null)
     // Keep the address bar in sync so a refresh or a shared link shows the same days.
     const url = new URL(window.location.href)
     url.search = rangeSearch(next)
@@ -99,6 +116,11 @@ export function DashboardView({
             dashboard={dashboard}
             interval={interval}
             onInterval={setInterval}
+            zoom={zoom}
+            onZoom={(next) => {
+              setZoom(next)
+              setInterval(null)
+            }}
             onLatestDay={(day) => pick({ from: day, to: day })}
           />
         </div>
@@ -165,11 +187,15 @@ function DashboardBody({
   dashboard,
   interval: picked,
   onInterval,
+  zoom: pickedZoom,
+  onZoom,
   onLatestDay,
 }: {
   dashboard: Dashboard
   interval: Interval | null
   onInterval: (interval: Interval) => void
+  zoom: Zoom | null
+  onZoom: (zoom: Zoom) => void
   onLatestDay: (day: string) => void
 }) {
   const [mode, setMode] = useState<ChartMode>("interval")
@@ -200,8 +226,29 @@ function DashboardBody({
     )
   }
 
-  const interval = picked && fitsInterval(times, picked) ? picked : defaultInterval(times)
-  const rows = buckets(times, interval)
+  const now = Date.parse(dashboard.readAt)
+  const doorsOpen = withDay ? null : morningSpan(dashboard.range.from)
+  // The hour before the keynote is what the door is for: start there when anything happened in it.
+  const zoom =
+    pickedZoom ??
+    (doorsOpen && times.some((time) => time >= doorsOpen.start && time < doorsOpen.end)
+      ? "morning"
+      : "all")
+  const span: Span | undefined =
+    zoom === "morning" ? (doorsOpen ?? undefined) : zoom === "all" ? undefined : zoom
+  const interval =
+    picked && fitsInterval(times, picked, span) ? picked : defaultInterval(times, span)
+  // A live morning stops at now instead of drawing the rest of the hour as zero.
+  const rows = span
+    ? buckets(times, interval, { ...span, end: Math.min(span.end, now) })
+    : buckets(times, interval)
+  const axis =
+    span ??
+    (rows.length > 0
+      ? { start: rows[0]!.start, end: rows.at(-1)!.start + interval * 60_000 }
+      : { start: 0, end: 1 })
+  const perMinute = span ? spanPerMinute(times, span, now) : withDay ? null : numbers.perMinute
+  const rush = morning(times, now)
   const doors = doorRows(dashboard)
   const doorNames = new Map(doors.map((door) => [door.key, door.name]))
   const share = dashboard.totalAttendees > 0 ? times.length / dashboard.totalAttendees : null
@@ -228,16 +275,24 @@ function DashboardBody({
             at: numbers.ninety,
             share: 0.9,
           },
-        ].map((mark) => ({ ...mark, value: Math.ceil(times.length * mark.share) }))
+        ]
+          .map((mark) => ({ ...mark, value: Math.ceil(times.length * mark.share) }))
+          .filter((mark) => mark.at >= axis.start && mark.at < axis.end)
       : []
 
-  // Over several days a duration from the very first check-in says nothing; show when.
+  // Over several days a duration says nothing; show when. On one day, count from the doors
+  // opening, so a test badge at 07:20 does not stretch it.
   const reached = (at: number | null) =>
     at == null || numbers.first == null
       ? { value: "–" }
       : withDay
         ? { value: formatClock(at, true) }
-        : { value: formatDuration(at - numbers.first), detail: `kl. ${formatClock(at)}` }
+        : {
+            value: formatDuration(
+              at - (doorsOpen && at >= doorsOpen.start ? doorsOpen.start : numbers.first),
+            ),
+            detail: `kl. ${formatClock(at)}`,
+          }
   const clock = (at: number) => `${withDay ? "" : "kl. "}${formatClock(at, withDay)}`
 
   return (
@@ -264,13 +319,29 @@ function DashboardBody({
                   ? `Innsjekk per ${INTERVAL_LABELS[interval]}`
                   : "Innsjekket totalt"}
               </SectionTitle>
-              {numbers.perMinute != null && !withDay ? (
+              {perMinute != null ? (
                 <p className="text-xs opacity-50">
-                  Snitt {numberFormat.format(Math.round(numbers.perMinute * 10) / 10)} i minuttet
+                  Snitt {decimalFormat.format(perMinute)} i minuttet
                 </p>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
+              <Segmented
+                label="Tidsrom"
+                value={typeof zoom === "string" ? zoom : "zoom"}
+                onChange={(next) => {
+                  if (next !== "zoom") onZoom(next)
+                }}
+                options={[
+                  ...(doorsOpen
+                    ? [{ value: "morning" as const, label: `${OPEN_LABEL}–${KEYNOTE_LABEL}` }]
+                    : []),
+                  { value: "all" as const, label: withDay ? "Hele perioden" : "Hele dagen" },
+                  ...(typeof zoom === "string"
+                    ? []
+                    : [{ value: "zoom" as const, label: "Utvalg" }]),
+                ]}
+              />
               <Segmented
                 label="Visning"
                 value={mode}
@@ -287,19 +358,55 @@ function DashboardBody({
                 options={INTERVALS.map((option) => ({
                   value: option,
                   label: INTERVAL_LABELS[option],
-                  disabled: !fitsInterval(times, option),
+                  disabled: !fitsInterval(times, option, span),
                 }))}
               />
             </div>
           </div>
           <CheckInChart
-            key={`${mode}-${interval}`}
+            key={`${mode}-${interval}-${axis.start}-${axis.end}`}
             rows={rows}
+            span={axis}
+            onZoom={onZoom}
             interval={interval}
             mode={mode}
             withDay={withDay}
             marks={marks}
             breakdown={breakdown}
+          />
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <SectionTitle>Før og etter keynote</SectionTitle>
+        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4 lg:grid-cols-6">
+          <Stat
+            label={`Inne før ${KEYNOTE_LABEL}`}
+            value={numberFormat.format(rush.early + rush.rush)}
+            detail={
+              times.length > 0
+                ? `${percentFormat.format((rush.early + rush.rush) / times.length)} av innsjekkede`
+                : undefined
+            }
+          />
+          <Stat
+            label={`Snitt ${OPEN_LABEL}–${KEYNOTE_LABEL}`}
+            value={rush.perMinute != null ? decimalFormat.format(rush.perMinute) : "–"}
+            detail="i minuttet"
+          />
+          <Stat
+            label="Etternølere"
+            value={numberFormat.format(rush.late)}
+            detail={
+              times.length > 0
+                ? `${percentFormat.format(rush.late / times.length)} · etter ${KEYNOTE_LABEL}`
+                : `etter ${KEYNOTE_LABEL}`
+            }
+          />
+          <Stat
+            label={`Før ${OPEN_LABEL}`}
+            value={numberFormat.format(rush.early)}
+            detail="før dørene åpnet"
           />
         </div>
       </section>

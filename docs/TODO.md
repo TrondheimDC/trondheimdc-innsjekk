@@ -191,6 +191,8 @@ See and replay the day afterwards: how fast everyone got checked in, and how muc
 - [x] Chart of checked-in attendees over time (cumulative and per-interval: per minute / 5 / 15 / 60 minutes), built from `check_events` timestamps
 - [ ] Replay the day: scrub or play a timeline and watch the count build up
 - [x] Key numbers: first and last check-in, busiest minute and quarter, time to reach 50 / 90 %, share of attendees checked in
+- [x] Zoom the chart: opens on doors open → keynote (08:00–09:00) when anything happened then, «Hele dagen», or drag across the chart (mouse) for «Utvalg»; «Snitt i minuttet» follows the zoom and only counts minutes that have passed
+- [x] Før og etter keynote: in before 09:00, average per minute 08:00–09:00, Etternølere (from 09:00), before the doors opened; 50 / 90 % counted from 08:00
 - [x] Count each attendee once: the `in` that still stands, leaving out check-ins that were later undone (`out`)
 - [x] Door edits from `correct` events (not `attendees.correctedAt`, which only shows who is corrected right now): number of edits, attendees edited, which fields changed (`detail.from` / `detail.to`), and missing names filled in (`from.name` is null) counted separately; plus Manuelle and undone check-ins
 - [x] Breakdown per printer (the door login's printer; admins by name)

@@ -1,4 +1,4 @@
-import { type Dashboard, EVENT_TIME_ZONE } from "./dashboard-data"
+import { type Dashboard, EVENT_TIME_ZONE, osloDate, osloInstant } from "./dashboard-data"
 
 const MINUTE = 60_000
 
@@ -8,6 +8,16 @@ export type Interval = (typeof INTERVALS)[number]
 
 /** More bars than this and they turn into a smear. */
 const MAX_BUCKETS = 720
+
+/** Doors open at 08:00 and the keynote starts at 09:00 (Oslo): the hour the door is for. */
+export const DOORS_OPEN = 8 * 60
+export const KEYNOTE = 9 * 60
+
+/** `[start, end)` instants. */
+export interface Span {
+  start: number
+  end: number
+}
 
 export interface Bucket {
   start: number
@@ -27,34 +37,53 @@ function floorTo(ms: number, interval: Interval) {
   return Math.floor(ms / size) * size
 }
 
-export function fitsInterval(times: number[], interval: Interval): boolean {
-  if (times.length === 0) return true
-  const span = floorTo(times.at(-1)!, interval) - floorTo(times[0]!, interval)
-  return span / (interval * MINUTE) + 1 <= MAX_BUCKETS || interval === 60
+/** The span to chart: the one picked, else first to last check-in. */
+function extent(times: number[], span?: Span): Span | null {
+  if (span) return span
+  return times.length === 0 ? null : { start: times[0]!, end: times.at(-1)! + 1 }
+}
+
+export function fitsInterval(times: number[], interval: Interval, span?: Span): boolean {
+  const range = extent(times, span)
+  if (!range) return true
+  const length = floorTo(range.end - 1, interval) - floorTo(range.start, interval)
+  return length / (interval * MINUTE) + 1 <= MAX_BUCKETS || interval === 60
 }
 
 /** Five minutes reads as a smooth curve for a morning at the door; per minute is one tap away. */
-export function defaultInterval(times: number[]): Interval {
-  if (times.length === 0) return 5
-  const minutes = (times.at(-1)! - times[0]!) / MINUTE
+export function defaultInterval(times: number[], span?: Span): Interval {
+  const range = extent(times, span)
+  if (!range) return 5
+  const minutes = (range.end - range.start) / MINUTE
+  if (minutes <= 30) return 1
   if (minutes <= 720) return 5
   if (minutes <= 48 * 60) return 15
   return 60
 }
 
-/** Every interval from the first check-in to the last, empty ones included. */
-export function buckets(times: number[], interval: Interval): Bucket[] {
-  if (times.length === 0) return []
+/**
+ * Every interval across the span (default: first check-in to last), empty ones included.
+ * The running total counts check-ins before the span too.
+ */
+export function buckets(times: number[], interval: Interval, span?: Span): Bucket[] {
+  const range = extent(times, span)
+  if (!range) return []
   const size = interval * MINUTE
-  const first = floorTo(times[0]!, interval)
-  const length = (floorTo(times.at(-1)!, interval) - first) / size + 1
+  const first = floorTo(range.start, interval)
+  const length = Math.max(0, (floorTo(range.end - 1, interval) - first) / size + 1)
   const rows: Bucket[] = Array.from({ length }, (_, i) => ({
     start: first + i * size,
     count: 0,
     total: 0,
   }))
-  for (const time of times) rows[Math.floor((time - first) / size)]!.count += 1
   let total = 0
+  for (const time of times) {
+    if (time < first) total += 1
+    else {
+      const row = rows[Math.floor((time - first) / size)]
+      if (row) row.count += 1
+    }
+  }
   for (const row of rows) {
     total += row.count
     row.total = total
@@ -118,6 +147,55 @@ export function keyNumbers(times: number[]): KeyNumbers {
     ninety: times[Math.ceil(count * 0.9) - 1]!,
     perMinute: minutes >= 1 ? count / minutes : null,
   }
+}
+
+/** 08:00–09:00 on an Oslo day. */
+export function morningSpan(date: string): Span {
+  return {
+    start: osloInstant(date, DOORS_OPEN).getTime(),
+    end: osloInstant(date, KEYNOTE).getTime(),
+  }
+}
+
+/** Check-ins per minute across a span, counting only the minutes that have passed by `now`. */
+export function spanPerMinute(times: number[], span: Span, now: number): number | null {
+  const minutes = (Math.min(span.end, now) - span.start) / MINUTE
+  if (minutes < 1) return null
+  return times.filter((time) => time >= span.start && time < span.end).length / minutes
+}
+
+export interface Morning {
+  /** Before the doors opened at 08:00. */
+  early: number
+  /** 08:00–09:00. */
+  rush: number
+  /** From the keynote at 09:00: the latecomers. */
+  late: number
+  /** Per minute between 08:00 and 09:00, over every day with check-ins. */
+  perMinute: number | null
+}
+
+/** Before, during and after the hour from doors open to keynote, on each check-in's own day. */
+export function morning(times: number[], now: number): Morning {
+  const result: Morning = { early: 0, rush: 0, late: 0, perMinute: null }
+  const spans = new Map<string, Span>()
+  for (const time of times) {
+    const date = osloDate(new Date(time))
+    let span = spans.get(date)
+    if (!span) {
+      span = morningSpan(date)
+      spans.set(date, span)
+    }
+    if (time < span.start) result.early += 1
+    else if (time < span.end) result.rush += 1
+    else result.late += 1
+  }
+  let minutes = 0
+  for (const span of spans.values()) {
+    minutes += Math.max(0, Math.min(span.end, now) - span.start) / MINUTE
+  }
+  if (minutes >= 1) result.perMinute = result.rush / minutes
+  return result
 }
 
 export interface DoorRow {

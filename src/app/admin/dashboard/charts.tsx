@@ -2,7 +2,13 @@
 
 import { useId, useLayoutEffect, useRef, useState } from "react"
 import { osloOffset } from "@/lib/dashboard-data"
-import { type Bucket, formatClock, type Interval, numberFormat } from "@/lib/dashboard-stats"
+import {
+  type Bucket,
+  formatClock,
+  type Interval,
+  numberFormat,
+  type Span,
+} from "@/lib/dashboard-stats"
 
 const MINUTE = 60_000
 const HEIGHT = 220
@@ -89,34 +95,41 @@ export interface TooltipRow {
 
 /**
  * Check-ins over the day as one area: per interval, or the running total.
- * The crosshair snaps to an interval and splits it by printer.
+ * The crosshair snaps to an interval and splits it by printer. With a mouse, drag across
+ * the chart to zoom in on that stretch.
  */
 export function CheckInChart({
   rows,
+  span,
   interval,
   mode,
   withDay,
   marks,
   breakdown,
+  onZoom,
 }: {
   rows: Bucket[]
+  /** The time axis; `rows` may stop short of its end (now, while the door is still open). */
+  span: Span
   interval: Interval
   mode: ChartMode
   withDay: boolean
   /** Labeled dots on the running total (50 % / 90 %). */
   marks: { label: string; at: number; value: number }[]
   breakdown: (bucket: Bucket) => TooltipRow[]
+  onZoom: (span: Span) => void
 }) {
   const { ref, width } = useWidth()
   const [hover, setHover] = useState<number | null>(null)
+  const [drag, setDrag] = useState<{ from: number; to: number } | null>(null)
   const gradientId = useId()
   const size = interval * MINUTE
 
   if (rows.length === 0) return <div ref={ref} style={{ height: HEIGHT }} />
 
-  // Per interval: a point mid-bucket. Total: the count at the end of each bucket, from 0.
-  const start = rows[0]!.start
-  const end = rows.at(-1)!.start + size
+  // Per interval: a point mid-bucket. Total: the count at the end of each bucket.
+  const { start, end } = span
+  const rowsEnd = rows.at(-1)!.start + size
   const values = rows.map((row) => (mode === "interval" ? row.count : row.total))
   const at = (i: number) =>
     mode === "interval" ? rows[i]!.start + size / 2 : rows[i]!.start + size
@@ -133,15 +146,23 @@ export function CheckInChart({
             const y = (value: number) =>
               PAD.top + (1 - value / top) * (HEIGHT - PAD.top - PAD.bottom)
             const points: [number, number][] = values.map((value, i) => [x(at(i)), y(value)])
-            if (mode === "total") points.unshift([x(start), y(0)])
+            const rowsStart = rows[0]!.start
+            if (mode === "total") {
+              points.unshift([x(rowsStart), y(rows[0]!.total - rows[0]!.count)])
+            }
             // One interval alone is a point, not a line: rise from and fall back to the baseline.
-            else if (points.length === 1) points.splice(0, 0, [x(start), y(0)])
-            if (mode === "interval" && rows.length === 1) points.push([x(end), y(0)])
+            else if (points.length === 1) points.splice(0, 0, [x(rowsStart), y(0)])
+            if (mode === "interval" && rows.length === 1) points.push([x(rowsEnd), y(0)])
             const line = smoothPath(points)
             const area = `${line}L${points.at(-1)![0]},${y(0)}L${points[0]![0]},${y(0)}Z`
             const peakIndex = values.indexOf(max)
             const hovered = hover == null ? null : rows[hover]!
             const hoverX = hover == null ? 0 : x(at(hover))
+            const timeAt = (event: React.PointerEvent<SVGSVGElement>) => {
+              const px = event.clientX - event.currentTarget.getBoundingClientRect().left
+              const ms = start + ((px - PAD.left) / plotWidth) * (end - start)
+              return Math.min(end, Math.max(start, ms))
+            }
 
             return (
               <>
@@ -154,12 +175,32 @@ export function CheckInChart({
                       ? `Innsjekk per ${interval === 60 ? "time" : `${interval} min`}, flest ${max}`
                       : `Innsjekket totalt, ${max} til slutt`
                   }
+                  className="cursor-crosshair select-none"
+                  // Mouse only: a finger dragging sideways should still scroll the page.
+                  onPointerDown={(event) => {
+                    if (event.pointerType !== "mouse" || event.button !== 0) return
+                    event.currentTarget.setPointerCapture(event.pointerId)
+                    const ms = timeAt(event)
+                    setDrag({ from: ms, to: ms })
+                  }}
                   onPointerMove={(event) => {
-                    const px = event.clientX - event.currentTarget.getBoundingClientRect().left
-                    const ms = start + ((px - PAD.left) / plotWidth) * (end - start)
-                    const i = Math.floor((ms - start) / size)
+                    const ms = timeAt(event)
+                    if (drag) {
+                      setDrag({ ...drag, to: ms })
+                      return
+                    }
+                    const i = Math.floor((ms - rowsStart) / size)
                     setHover(Math.min(rows.length - 1, Math.max(0, i)))
                   }}
+                  onPointerUp={() => {
+                    if (!drag) return
+                    setDrag(null)
+                    const from = Math.floor(Math.min(drag.from, drag.to) / MINUTE) * MINUTE
+                    const to = Math.ceil(Math.max(drag.from, drag.to) / MINUTE) * MINUTE
+                    // A click, not a drag: keep the crosshair.
+                    if (to - from >= 2 * MINUTE) onZoom({ start: from, end: to })
+                  }}
+                  onPointerCancel={() => setDrag(null)}
                   onPointerLeave={() => setHover(null)}
                 >
                   <defs>
@@ -232,9 +273,10 @@ export function CheckInChart({
                           strokeWidth={2}
                         />
                         <text
-                          x={x(mark.at) - 8}
+                          // Near the left edge (zoomed in), label to the right of the dot.
+                          x={x(mark.at) < PAD.left + 100 ? x(mark.at) + 8 : x(mark.at) - 8}
                           y={y(mark.value) - 8}
-                          textAnchor="end"
+                          textAnchor={x(mark.at) < PAD.left + 100 ? "start" : "end"}
                           fontSize="11"
                           fill="var(--color-fg-base)"
                         >
@@ -243,7 +285,18 @@ export function CheckInChart({
                       </g>
                     ))
                   )}
-                  {hovered ? (
+                  {drag ? (
+                    <rect
+                      x={x(Math.min(drag.from, drag.to))}
+                      y={PAD.top}
+                      width={Math.abs(x(drag.to) - x(drag.from))}
+                      height={HEIGHT - PAD.top - PAD.bottom}
+                      fill="rgb(255 255 255 / 8%)"
+                      stroke="rgb(255 255 255 / 25%)"
+                      pointerEvents="none"
+                    />
+                  ) : null}
+                  {hovered && !drag ? (
                     <g pointerEvents="none">
                       <line
                         x1={hoverX}
@@ -263,7 +316,7 @@ export function CheckInChart({
                     </g>
                   ) : null}
                 </svg>
-                {hovered ? (
+                {hovered && !drag ? (
                   <ChartTooltip
                     x={hoverX}
                     width={width}
