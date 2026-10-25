@@ -75,7 +75,7 @@ keytool -genkeypair -v -keystore innsjekk-release.jks -alias innsjekk \
   -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=TDC Innsjekk, O=TrondheimDC" \
   -storepass "$PASS" -keypass "$PASS"
 
-REPO=TrondheimDC/trondheimdc-checkin
+REPO=TrondheimDC/trondheimdc-innsjekk
 base64 -w0 innsjekk-release.jks | gh secret set ANDROID_KEYSTORE_BASE64 --repo $REPO
 printf '%s' "$PASS" | gh secret set ANDROID_KEYSTORE_PASSWORD --repo $REPO
 printf '%s' "$PASS" | gh secret set ANDROID_KEY_PASSWORD --repo $REPO

@@ -14,7 +14,7 @@ export const ANDROID_APP_CERT_SHA256: string[] = [
 ]
 
 /** Signed release APKs, built by .github/workflows/android.yml. */
-export const APP_RELEASES_URL = "https://github.com/TrondheimDC/trondheimdc-checkin/releases"
+export const APP_RELEASES_URL = "https://github.com/TrondheimDC/trondheimdc-innsjekk/releases"
 
 /** Redeems a one-time login code in the app (`/app-login?token=…&next=…`). */
 export const APP_LOGIN_PATH = "/app-login"

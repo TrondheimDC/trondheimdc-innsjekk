@@ -13,7 +13,7 @@ Brother docs hub: [Smooth Print HTML documentation](https://support.brother.com/
 The app ([android-app.md](./android-app.md)) needs one release key before it can ship as a release build and before `innsjekk.trondheimdc.no` links open in the app. Steps and commands: [android-app.md → Signing key (once)](./android-app.md#signing-key-once).
 
 - [x] Create `innsjekk-release.jks` (`CN=TDC Innsjekk, O=TrondheimDC`), keep file + password in the password manager
-- [x] Repo secrets on `TrondheimDC/trondheimdc-checkin`: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`
+- [x] Repo secrets on `TrondheimDC/trondheimdc-innsjekk`: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, `ANDROID_KEY_ALIAS`
 - [x] Put the SHA-256 fingerprint in `ANDROID_APP_CERT_SHA256` (`src/lib/android-app.ts`) and deploy
 - [ ] Run **Actions → Android app**, upload the APK under Admin → Android-app, make it active
 - [ ] On a phone: install, then check Settings → Apps → TDC Innsjekk → Open by default lists `innsjekk.trondheimdc.no` as verified
